@@ -35,6 +35,6 @@ make -j8 CROSS_COMPILE=${CROSS_PREFIX} ARCH=arm INSTALL_MOD_PATH=/var/tmp/niluje
 
 # Usage
 
-Copy `mxc_epdc_fb_damage.ko` to the reMarkable and run `insmod` on it
+Copy `mxc_epdc_fb_damage.ko` to your device and run `insmod` on it
 to load. If your platform has an mxc framebuffer numbered other than
-zero, pass `fbnode=n` to insmod.
+zero, pass `fbnode=n` to insmod (this should never be the case on Kobo).

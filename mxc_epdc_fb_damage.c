@@ -1,3 +1,8 @@
+// For Kdevelop's sake...
+#ifndef __KERNEL__
+#define __KERNEL__
+#endif
+
 #include <linux/cdev.h>
 #include <linux/circ_buf.h>
 #include <linux/fs.h>
@@ -30,8 +35,7 @@ static int
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
 	if (cmd == MXCFB_SEND_UPDATE) {
-		/* The fb_ioctl() is called with the console lock held, so there
-     * is no need for additional locking here */
+		/* The fb_ioctl() is called with the console lock held, so there is no need for additional locking here */
 		unsigned long head = upd_buf_head;
 		unsigned long tail = ACCESS_ONCE(upd_buf_tail);
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {

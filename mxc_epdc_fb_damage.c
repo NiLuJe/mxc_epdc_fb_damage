@@ -1,6 +1,6 @@
 // For Kdevelop's sake...
 #ifndef __KERNEL__
-#define __KERNEL__
+#	define __KERNEL__
 #endif
 
 #include <linux/cdev.h>
@@ -18,10 +18,9 @@ module_param(fbnode, int, 0);
 static atomic_t overflows = ATOMIC_INIT(0);
 
 #define NUM_UPD_BUF 64
-/* for simplicity in read() store mxcfb_damage_update rather than
- * mxcfb_update_data.
+/* For simplicity in read() store mxcfb_damage_update rather than mxcfb_update_data.
  *
- * the overflow_notify field is populated by read() and hence usually useless.
+ * The overflow_notify field is populated by read() and hence usually useless.
  */
 struct mxcfb_damage_update upd_data[NUM_UPD_BUF];
 unsigned long              upd_buf_head = 0;
@@ -42,7 +41,7 @@ static int
 			(void) !copy_from_user(
 			    &upd_data[head].data, (void __user*) arg, sizeof(struct mxcfb_update_data));
 			smp_wmb(); /* commit the item before incrementing the head */
-			upd_buf_head = (head + 1) & (NUM_UPD_BUF - 1);
+			ACCESS_ONCE(upd_buf_head) = (head + 1) & (NUM_UPD_BUF - 1);
 			/*
       smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
 */
@@ -100,12 +99,16 @@ static ssize_t
 */
 		tail = upd_buf_tail;
 	}
+
+	/* read index before reading contents at that index */
+	smp_rmb();
+
 	upd_data[tail].overflow_notify = atomic_xchg(&overflows, 0);
 	if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
 		return -EFAULT;
 	}
-	smp_mb();
-	upd_buf_tail = (tail + 1) & (NUM_UPD_BUF - 1);
+	smp_mb(); /* finish reading descriptor before incrementing tail */
+	ACCESS_ONCE(upd_buf_tail) = (tail + 1) & (NUM_UPD_BUF - 1);
 	/*
   smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF -  1));
 */

@@ -39,7 +39,11 @@ static int fb_ioctl(struct fb_info *info,
       (void)!copy_from_user(&upd_data[head].data,
                             (void __user*) arg,
                             sizeof(struct mxcfb_update_data));
+      smp_wmb(); /* commit the item before incrementing the head */
+      upd_buf_head = (head + 1) & (NUM_UPD_BUF - 1);
+/*
       smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
+*/
     } else {
       atomic_inc(&overflows);
     }
@@ -66,22 +70,37 @@ static ssize_t fbdamage_read(struct file *filp,
   unsigned long head, tail;
   if (count < sizeof(struct mxcfb_damage_update)) { return -EINVAL; }
   /* no need for locks, since we only allow one reader */
+  head = ACCESS_ONCE(upd_buf_head);
+/*
   head = smp_load_acquire(&upd_buf_head);
+*/
   tail = upd_buf_tail;
   while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
     if (wait_event_interruptible(listen_queue,
+                                 (CIRC_CNT(ACCESS_ONCE(upd_buf_head),
+                                           upd_buf_tail, NUM_UPD_BUF)))) {
+/*
+    if (wait_event_interruptible(listen_queue,
                                  (CIRC_CNT(smp_load_acquire(&upd_buf_head),
                                            upd_buf_tail, NUM_UPD_BUF)))) {
+*/
       return -ERESTARTSYS;
     }
+    head = ACCESS_ONCE(upd_buf_head);
+/*
     head = smp_load_acquire(&upd_buf_head);
+*/
     tail = upd_buf_tail;
   }
   upd_data[tail].overflow_notify = atomic_xchg(&overflows, 0);
   if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
     return -EFAULT;
   }
+  smp_mb();
+  upd_buf_tail = (tail + 1) & (NUM_UPD_BUF -  1);
+/*
   smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF -  1));
+*/
   return sizeof(struct mxcfb_damage_update);
 }
 

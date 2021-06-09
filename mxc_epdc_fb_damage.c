@@ -142,6 +142,8 @@ void cleanup_module(void)
   device_destroy(fbdamage_class, dev);
   class_destroy(fbdamage_class);
   unregister_chrdev_region(dev, 1);
+
+  registered_fb[fbnode]->fbops->fb_ioctl = orig_fb_ioctl;
 }
 
 MODULE_LICENSE("GPL");

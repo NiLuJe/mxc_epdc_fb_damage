@@ -9,8 +9,18 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include "mxc_epdc_fb_damage.h"
+
+// Prefer READ_ONCE if it's available (in which case, ACCESS_ONCE is liable to be gone, too).
+// c.f., https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=01e4644203b01fba5023784598f4d033e3bd3e28
+#ifdef READ_ONCE
+#	ifdef ACCESS_ONCE
+#		undef ACCESS_ONCE
+#		define ACCESS_ONCE READ_ONCE
+#	endif
+#endif
 
 static int fbnode = 0;
 module_param(fbnode, int, 0);
@@ -40,11 +50,12 @@ static int
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
 			(void) !copy_from_user(
 			    &upd_data[head].data, (void __user*) arg, sizeof(struct mxcfb_update_data));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
+#else
 			smp_wmb(); /* commit the item before incrementing the head */
 			ACCESS_ONCE(upd_buf_head) = (head + 1) & (NUM_UPD_BUF - 1);
-			/*
-      smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
-*/
+#endif
 		} else {
 			atomic_inc(&overflows);
 		}
@@ -78,40 +89,45 @@ static ssize_t
 		return -EINVAL;
 	}
 	/* no need for locks, since we only allow one reader */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	head = smp_load_acquire(&upd_buf_head);
+#else
 	head = ACCESS_ONCE(upd_buf_head);
-	/*
-  head = smp_load_acquire(&upd_buf_head);
-*/
+#endif
 	tail = upd_buf_tail;
 	while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		if (wait_event_interruptible(listen_queue,
+					     (CIRC_CNT(smp_load_acquire(&upd_buf_head), upd_buf_tail, NUM_UPD_BUF)))) {
+#else
 		if (wait_event_interruptible(listen_queue,
 					     (CIRC_CNT(ACCESS_ONCE(upd_buf_head), upd_buf_tail, NUM_UPD_BUF)))) {
-			/*
-    if (wait_event_interruptible(listen_queue,
-                                 (CIRC_CNT(smp_load_acquire(&upd_buf_head),
-                                           upd_buf_tail, NUM_UPD_BUF)))) {
-*/
+#endif
 			return -ERESTARTSYS;
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		head = smp_load_acquire(&upd_buf_head);
+#else
 		head = ACCESS_ONCE(upd_buf_head);
-		/*
-    head = smp_load_acquire(&upd_buf_head);
-*/
+#endif
 		tail = upd_buf_tail;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 	/* read index before reading contents at that index */
 	smp_rmb();
+#endif
 
 	upd_data[tail].overflow_notify = atomic_xchg(&overflows, 0);
 	if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
 		return -EFAULT;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF - 1));
+#else
 	smp_mb(); /* finish reading descriptor before incrementing tail */
 	ACCESS_ONCE(upd_buf_tail) = (tail + 1) & (NUM_UPD_BUF - 1);
-	/*
-  smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF -  1));
-*/
+#endif
 	return sizeof(struct mxcfb_damage_update);
 }
 

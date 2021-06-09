@@ -17,7 +17,7 @@ module_param(fbnode, int, 0);
 
 static atomic_t overflows = ATOMIC_INIT(0);
 
-#define NUM_UPD_BUF 8
+#define NUM_UPD_BUF 64
 /* for simplicity in read() store mxcfb_damage_update rather than
  * mxcfb_update_data.
  *
@@ -25,7 +25,7 @@ static atomic_t overflows = ATOMIC_INIT(0);
  */
 struct mxcfb_damage_update upd_data[NUM_UPD_BUF];
 unsigned long              upd_buf_head = 0;
-unsigned long              upd_buf_tail = 7;
+unsigned long              upd_buf_tail = NUM_UPD_BUF - 1;
 DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);

@@ -1,15 +1,7 @@
 # Introduction
 
-This module provides userspace damage tracking for (at least some)
-i.MX6 e-paper framebuffers. It has been tested on the [reMarkable
-tablet](https://remarkable.com) which uses an i.MX6 SoloLite.
-
-Since e-paper displays have very high updates latencies, which depend
-on the size of the region updated, well-written applications intended
-to run on such displays will, whenever ready to draw to the display,
-inform the framebuffer driver of precisely what areas of the display
-need to be updated. Consequently, the kernel has detailed damage
-tracking information available.
+This module provides userspace damage tracking for the i.MX
+framebuffers used on Kobo devices.
 
 For some applications, damage-tracking information is useful, and the
 lack of efficient damage-tracking can be an issue when using the Linux
@@ -34,17 +26,12 @@ kernel in an `MXCFB_SEND_UPDATE` ioctl.
 
 # Building
 
-The supported way to build this is via the
-[Nix](https://nixos.org/nix) package manager, through the
-[nix-remarkable](https://github.com/peter-sa/nix-remarkable)
-expressions. To build just this project via `nix build` from this
-repo, download it into the `pkgs/` directory of `nix-remarkable`.
-
-For any other system, this should build like any other Linux kernel
-module being cross-built for the reMarkable.
-
-Prebuilt binaries are available in the [Releases
-tab](https://github.com/peter-sa/mxc_epdc_fb_damage/releases).
+This should build like any other Linux kernel
+module being cross-built for your target device,
+e.g.,
+```
+make -j8 CROSS_COMPILE=${CROSS_PREFIX} ARCH=arm INSTALL_MOD_PATH=/var/tmp/niluje/kobo/modules KDIR=/var/tmp/niluje/kobo/kernel
+```
 
 # Usage
 

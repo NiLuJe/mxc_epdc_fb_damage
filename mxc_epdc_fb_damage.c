@@ -34,7 +34,7 @@ static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
-	if (cmd == MXCFB_SEND_UPDATE) {
+	if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		unsigned long head = upd_buf_head;
 		/* Said locking provide the needed ordering. */
@@ -46,7 +46,7 @@ static int
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
 			/* insert one item into the buffer */
 			(void) !copy_from_user(
-			    &upd_data[head].data, (void __user*) arg, sizeof(struct mxcfb_update_data));
+			    &upd_data[head].data, (void __user*) arg, sizeof(upd_data[head].data));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
 #else

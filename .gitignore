@@ -1,3 +1,12 @@
+# Modules
+*.o
+*.ko
+*.mod.*
+*.o.cmd
+*.ko.cmd
+.tmp_versions/
+Module.symvers
+modules.order
 # KDevelop
 mxc_epdc_fb_damage.kdev4
 .kdev4/

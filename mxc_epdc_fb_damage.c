@@ -31,7 +31,8 @@ typedef struct
 	int                  tail;
 } mxcfb_damage_circ_buf;
 
-static mxcfb_damage_circ_buf damage_circ;
+static mxcfb_damage_update   damage_buffer[NUM_UPD_BUF];
+static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 
@@ -167,11 +168,6 @@ int
 		return ret;
 	}
 
-	damage_circ.buffer = kcalloc(NUM_UPD_BUF, sizeof(*damage_circ.buffer), GFP_KERNEL);
-	if (!damage_circ.buffer) {
-		return -ENOMEM;
-	}
-
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
 
@@ -183,7 +179,6 @@ int
 void
     cleanup_module(void)
 {
-	kfree(damage_circ.buffer);
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);

@@ -15,6 +15,7 @@
 
 // Prefer READ_ONCE if it's available (in which case, ACCESS_ONCE is liable to be gone, too, anyway).
 // c.f., https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=01e4644203b01fba5023784598f4d033e3bd3e28
+// FIXME: Actually, a couple of those probably ought to be WRITE_ONCE :s
 #ifdef READ_ONCE
 #	ifdef ACCESS_ONCE
 #		undef ACCESS_ONCE

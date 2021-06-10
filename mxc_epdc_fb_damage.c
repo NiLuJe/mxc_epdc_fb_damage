@@ -18,15 +18,38 @@ module_param(fbnode, int, 0);
 
 static atomic_t overflows = ATOMIC_INIT(0);
 
-#define NUM_UPD_BUF 64
-/* For simplicity in read() store mxcfb_damage_update rather than mxcfb_update_data.
+// Matches EPDC_V2_MAX_NUM_UPDATES
+#define NUM_UPD_BUF 64U
+/* For simplicity in read(), we store mxcfb_damage_update rather than mxcfb_update_data.
  *
  * The overflow_notify field is populated by read() and hence usually useless.
  */
+typedef struct
+{
+	mxcfb_damage_update* buffer;
+	size_t               head;
+	size_t               tail;
+	size_t               size;
+} mxcfb_damage_circ_buf;
+
+/*
+static mxcfb_damage_update damage_buffer[NUM_UPD_BUF];
+static mxcfb_damage_circ_buf damage_circ_buf = {
+	.buffer = damage_buffer,
+	.head   = 0,
+	.tail   = 0,
+	.size   = NUM_UPD_BUF
+};
+*/
+static mxcfb_damage_circ_buf damage_circ_buf;
+
+/*
 struct mxcfb_damage_update upd_data[NUM_UPD_BUF];
 unsigned long              upd_buf_head = 0;
 unsigned long              upd_buf_tail = NUM_UPD_BUF - 1;
-DECLARE_WAIT_QUEUE_HEAD(listen_queue);
+*/
+
+static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 
@@ -36,22 +59,23 @@ static int
 	int ret = orig_fb_ioctl(info, cmd, arg);
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
-		unsigned long head = upd_buf_head;
+		size_t head = damage_circ_buf.head;
 		/* Said locking provide the needed ordering. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		unsigned long tail = READ_ONCE(upd_buf_tail);
+		size_t tail = READ_ONCE(damage_circ_buf.tail);
 #else
-		unsigned long tail = ACCESS_ONCE(upd_buf_tail);
+		size_t tail = ACCESS_ONCE(damage_circ_buf.tail);
 #endif
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
 			/* insert one item into the buffer */
-			(void) !copy_from_user(
-			    &upd_data[head].data, (void __user*) arg, sizeof(upd_data[head].data));
+			(void) !copy_from_user(&damage_circ_buf.buffer[head].data,
+					       (void __user*) arg,
+					       sizeof(damage_circ_buf.buffer[head].data));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-			smp_store_release(&upd_buf_head, (head + 1) & (NUM_UPD_BUF - 1));
+			smp_store_release(&damage_circ_buf.head, (head + 1) & (NUM_UPD_BUF - 1));
 #else
 			smp_wmb(); /* commit the item before incrementing the head */
-			ACCESS_ONCE(upd_buf_head) = (head + 1) & (NUM_UPD_BUF - 1);
+			ACCESS_ONCE(damage_circ_buf.head) = (head + 1) & (NUM_UPD_BUF - 1);
 #endif
 		} else {
 			atomic_inc(&overflows);
@@ -82,36 +106,37 @@ static int
 static ssize_t
     fbdamage_read(struct file* filp, char __user* buff, size_t count, loff_t* offp)
 {
-	unsigned long head, tail;
-	if (count < sizeof(struct mxcfb_damage_update)) {
+	size_t head, tail;
+	if (count < sizeof(mxcfb_damage_update)) {
 		return -EINVAL;
 	}
 	/* no need for locks, since we only allow one reader */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	/* read index before reading contents at that index */
-	head = smp_load_acquire(&upd_buf_head);
+	head = smp_load_acquire(&damage_circ_buf.head);
 #else
-	head = ACCESS_ONCE(upd_buf_head);
+	head = ACCESS_ONCE(damage_circ_buf.head);
 #endif
-	tail = upd_buf_tail;
+	tail = damage_circ_buf.tail;
 	while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
 		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up,
 		// (at which point we'll be guaranteed to have something to read).
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		if (wait_event_interruptible(listen_queue,
-					     (CIRC_CNT(smp_load_acquire(&upd_buf_head), upd_buf_tail, NUM_UPD_BUF)))) {
+		if (wait_event_interruptible(
+			listen_queue,
+			(CIRC_CNT(smp_load_acquire(&damage_circ_buf.head), damage_circ_buf.tail, NUM_UPD_BUF)))) {
 #else
-		if (wait_event_interruptible(listen_queue,
-					     (CIRC_CNT(ACCESS_ONCE(upd_buf_head), upd_buf_tail, NUM_UPD_BUF)))) {
+		if (wait_event_interruptible(
+			listen_queue, (CIRC_CNT(ACCESS_ONCE(damage_circ_buf.head), damage_circ_buf.tail, NUM_UPD_BUF)))) {
 #endif
 			return -ERESTARTSYS;
 		}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		head = smp_load_acquire(&upd_buf_head);
+		head = smp_load_acquire(&damage_circ_buf.head);
 #else
-		head = ACCESS_ONCE(upd_buf_head);
+		head = ACCESS_ONCE(damage_circ_buf.head);
 #endif
-		tail = upd_buf_tail;
+		tail = damage_circ_buf.tail;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
@@ -120,18 +145,18 @@ static ssize_t
 #endif
 
 	/* extract one item from the buffer */
-	upd_data[tail].overflow_notify = atomic_xchg(&overflows, 0);
-	if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
+	damage_circ_buf.buffer[tail].overflow_notify = atomic_xchg(&overflows, 0);
+	if (copy_to_user(buff, &damage_circ_buf.buffer[tail], sizeof(mxcfb_damage_update))) {
 		return -EFAULT;
 	}
 	/* Finish reading descriptor before incrementing tail. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF - 1));
+	smp_store_release(&damage_circ_buf.tail, (tail + 1) & (NUM_UPD_BUF - 1));
 #else
 	smp_mb(); /* finish reading descriptor before incrementing tail */
-	ACCESS_ONCE(upd_buf_tail) = (tail + 1) & (NUM_UPD_BUF - 1);
+	ACCESS_ONCE(damage_circ_buf.tail) = (tail + 1) & (NUM_UPD_BUF - 1);
 #endif
-	return sizeof(struct mxcfb_damage_update);
+	return sizeof(mxcfb_damage_update);
 }
 
 static dev_t                        dev;
@@ -148,11 +173,11 @@ int
     init_module(void)
 {
 	int ret;
+
 	if (!registered_fb[fbnode]) {
 		return -ENODEV;
 	}
-	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
-	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
+
 	if ((ret = alloc_chrdev_region(&dev, 0, 1, "mxc_epdc_fb_damage"))) {
 		return ret;
 	}
@@ -161,6 +186,16 @@ int
 		unregister_chrdev_region(dev, 1);
 		return ret;
 	}
+
+	damage_circ_buf.buffer = kcalloc(NUM_UPD_BUF, sizeof(*damage_circ_buf.buffer), GFP_KERNEL);
+	if (!damage_circ_buf.buffer) {
+		return -ENOMEM;
+	}
+	damage_circ_buf.size = NUM_UPD_BUF;
+
+	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
+	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
+
 	fbdamage_class  = class_create(THIS_MODULE, "fbdamage");
 	fbdamage_device = device_create(fbdamage_class, NULL, dev, NULL, "fbdamage");
 	return 0;
@@ -169,6 +204,7 @@ int
 void
     cleanup_module(void)
 {
+	kfree(damage_circ_buf.buffer);
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);

@@ -35,7 +35,7 @@ int main(void) {
 		return EXIT_FAILURE;
 	}
 
-	struct mxcfb_damage_update damage = { 0 };
+	mxcfb_damage_update damage = { 0 };
 
 	while (read(fd, &damage, sizeof(damage)) == sizeof(damage)) {
 		printf("MXCFB_SEND_UPDATE_V1_NTX: overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",

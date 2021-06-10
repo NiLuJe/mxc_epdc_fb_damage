@@ -88,6 +88,7 @@ static ssize_t
 	}
 	/* no need for locks, since we only allow one reader */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	/* read index before reading contents at that index */
 	head = smp_load_acquire(&upd_buf_head);
 #else
 	head = ACCESS_ONCE(upd_buf_head);
@@ -118,6 +119,7 @@ static ssize_t
 	smp_rmb();
 #endif
 
+	/* extract one item from the buffer */
 	upd_data[tail].overflow_notify = atomic_xchg(&overflows, 0);
 	if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
 		return -EFAULT;

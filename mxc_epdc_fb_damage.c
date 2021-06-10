@@ -47,8 +47,10 @@ static int
 	if (cmd == MXCFB_SEND_UPDATE) {
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		unsigned long head = upd_buf_head;
+		/* Said locking provide the needed ordering. */
 		unsigned long tail = ACCESS_ONCE(upd_buf_tail);
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
+			/* insert one item into the buffer */
 			(void) !copy_from_user(
 			    &upd_data[head].data, (void __user*) arg, sizeof(struct mxcfb_update_data));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
@@ -60,6 +62,7 @@ static int
 		} else {
 			atomic_inc(&overflows);
 		}
+		/* wake_up() will make sure that the head is committed before waking anyone up */
 		wake_up(&listen_queue);
 	}
 	return ret;
@@ -97,6 +100,8 @@ static ssize_t
 #endif
 	tail = upd_buf_tail;
 	while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
+		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up,
+		// (at which point we'll be guaranteed to have something to read).
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		if (wait_event_interruptible(listen_queue,
 					     (CIRC_CNT(smp_load_acquire(&upd_buf_head), upd_buf_tail, NUM_UPD_BUF)))) {
@@ -123,6 +128,7 @@ static ssize_t
 	if (copy_to_user(buff, &upd_data[tail], sizeof(struct mxcfb_damage_update))) {
 		return -EFAULT;
 	}
+	/* Finish reading descriptor before incrementing tail. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	smp_store_release(&upd_buf_tail, (tail + 1) & (NUM_UPD_BUF - 1));
 #else

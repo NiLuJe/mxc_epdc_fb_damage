@@ -13,16 +13,6 @@
 
 #include "mxc_epdc_fb_damage.h"
 
-// Prefer READ_ONCE if it's available (in which case, ACCESS_ONCE is liable to be gone, too, anyway).
-// c.f., https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=01e4644203b01fba5023784598f4d033e3bd3e28
-// FIXME: Actually, a couple of those probably ought to be WRITE_ONCE :s
-#ifdef READ_ONCE
-#	ifdef ACCESS_ONCE
-#		undef ACCESS_ONCE
-#	endif
-#	define ACCESS_ONCE READ_ONCE
-#endif
-
 static int fbnode = 0;
 module_param(fbnode, int, 0);
 
@@ -48,7 +38,11 @@ static int
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		unsigned long head = upd_buf_head;
 		/* Said locking provide the needed ordering. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		unsigned long tail = READ_ONCE(upd_buf_tail);
+#else
 		unsigned long tail = ACCESS_ONCE(upd_buf_tail);
+#endif
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
 			/* insert one item into the buffer */
 			(void) !copy_from_user(

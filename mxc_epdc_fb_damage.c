@@ -44,7 +44,7 @@ static int
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
 	if (cmd == MXCFB_SEND_UPDATE) {
-		/* The fb_ioctl() is called with the console lock held, so there is no need for additional locking here */
+		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		unsigned long head = upd_buf_head;
 		unsigned long tail = ACCESS_ONCE(upd_buf_tail);
 		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {

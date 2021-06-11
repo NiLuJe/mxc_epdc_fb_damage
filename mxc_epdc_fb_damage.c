@@ -75,6 +75,8 @@ static int
 				(void) !copy_from_user(&damage_circ.buffer[head].data.v2,
 						       (void __user*) arg,
 						       sizeof(damage_circ.buffer[head].data.v2));
+			} else {
+				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_UNKNOWN;
 			}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			smp_store_release(&damage_circ.head, (head + 1) & (DMG_BUF_SIZE - 1));

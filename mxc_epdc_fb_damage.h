@@ -17,6 +17,7 @@ typedef enum
 	DAMAGE_UPDATE_DATA_V1_NTX = 0,
 	DAMAGE_UPDATE_DATA_V1,
 	DAMAGE_UPDATE_DATA_V2,
+	DAMAGE_UPDATE_DATA_UNKNOWN = 0xFF,
 } mxcfb_damage_data_format;
 
 typedef struct

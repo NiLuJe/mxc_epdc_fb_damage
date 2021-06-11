@@ -12,6 +12,7 @@
 
 #include <linux/cdev.h>
 #include <linux/circ_buf.h>
+#include <linux/fb.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -19,6 +20,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
+
+#include "FBInk/eink/mxcfb-kobo.h"
 
 #include "mxc_epdc_fb_damage.h"
 
@@ -61,20 +64,82 @@ static int
 		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
-				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1_NTX;
-				(void) !copy_from_user(&damage_circ.buffer[head].data.v1_ntx,
-						       (void __user*) arg,
-						       sizeof(damage_circ.buffer[head].data.v1_ntx));
+				struct mxcfb_update_data_v1_ntx v1_ntx;
+				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1_NTX;
+
+					memcpy(&damage_circ.buffer[head].data.update_region,
+					       &v1_ntx.update_region,
+					       sizeof(v1_ntx.update_region));
+					damage_circ.buffer[head].data.waveform_mode = v1_ntx.waveform_mode;
+					damage_circ.buffer[head].data.update_mode   = v1_ntx.update_mode;
+					damage_circ.buffer[head].data.update_marker = v1_ntx.update_marker;
+					damage_circ.buffer[head].data.flags         = v1_ntx.flags;
+
+					// V2 only
+					damage_circ.buffer[head].data.dither_mode = 0;
+					damage_circ.buffer[head].data.quant_bit   = 0;
+
+					memcpy(&damage_circ.buffer[head].data.alt_buffer_data,
+					       &v1_ntx.alt_buffer_data,
+					       sizeof(v1_ntx.alt_buffer_data));
+				} else {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
+				}
 			} else if (cmd == MXCFB_SEND_UPDATE_V1) {
-				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1;
-				(void) !copy_from_user(&damage_circ.buffer[head].data.v1,
-						       (void __user*) arg,
-						       sizeof(damage_circ.buffer[head].data.v1));
+				// No void *virt_addr in alt_buffer_data
+				struct mxcfb_update_data_v1 v1;
+				if (!copy_from_user(&v1, (void __user*) arg, sizeof(v1))) {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1;
+
+					memcpy(&damage_circ.buffer[head].data.update_region,
+					       &v1.update_region,
+					       sizeof(v1.update_region));
+					damage_circ.buffer[head].data.waveform_mode = v1.waveform_mode;
+					damage_circ.buffer[head].data.update_mode   = v1.update_mode;
+					damage_circ.buffer[head].data.update_marker = v1.update_marker;
+					damage_circ.buffer[head].data.flags         = v1.flags;
+
+					// V2 only
+					damage_circ.buffer[head].data.dither_mode = 0;
+					damage_circ.buffer[head].data.quant_bit   = 0;
+
+					// V1 NTX only
+					damage_circ.buffer[head].data.alt_buffer_data.virt_addr = NULL;
+
+					memcpy(&damage_circ.buffer[head].data.alt_buffer_data.phys_addr,
+					       &v1.alt_buffer_data,
+					       sizeof(v1.alt_buffer_data));
+				} else {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
+				}
 			} else if (cmd == MXCFB_SEND_UPDATE_V2) {
-				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V2;
-				(void) !copy_from_user(&damage_circ.buffer[head].data.v2,
-						       (void __user*) arg,
-						       sizeof(damage_circ.buffer[head].data.v2));
+				// No void *virt_addr in alt_buffer_data
+				// int dither_mode & int quant_bit before alt_buffer_data
+				struct mxcfb_update_data v2;
+
+				if (!copy_from_user(&v2, (void __user*) arg, sizeof(v2))) {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V2;
+
+					memcpy(&damage_circ.buffer[head].data.update_region,
+					       &v2.update_region,
+					       sizeof(v2.update_region));
+					damage_circ.buffer[head].data.waveform_mode = v2.waveform_mode;
+					damage_circ.buffer[head].data.update_mode   = v2.update_mode;
+					damage_circ.buffer[head].data.update_marker = v2.update_marker;
+					damage_circ.buffer[head].data.flags         = v2.flags;
+					damage_circ.buffer[head].data.dither_mode   = v2.dither_mode;
+					damage_circ.buffer[head].data.quant_bit     = v2.quant_bit;
+
+					// V1 NTX only
+					damage_circ.buffer[head].data.alt_buffer_data.virt_addr = NULL;
+
+					memcpy(&damage_circ.buffer[head].data.alt_buffer_data.phys_addr,
+					       &v2.alt_buffer_data,
+					       sizeof(v2.alt_buffer_data));
+				} else {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
+				}
 			} else {
 				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_UNKNOWN;
 			}

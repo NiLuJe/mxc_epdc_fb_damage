@@ -162,7 +162,15 @@ static unsigned int
     fbdamage_poll(struct file* file, poll_table* wait)
 {
 	int head, tail;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+	__poll_t mask = 0;
+#else
+	unsigned int mask = 0;
+#endif
+
 	/* no need for locks, since we only allow one reader */
+	poll_wait(file, &listen_queue, wait);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	/* read index before reading contents at that index */
 	head = smp_load_acquire(&damage_circ.head);
@@ -170,16 +178,15 @@ static unsigned int
 	head = ACCESS_ONCE(damage_circ.head);
 #endif
 	tail = damage_circ.tail;
-	if (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
-		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up
-		poll_wait(file, &listen_queue, wait);
+	if (CIRC_CNT(head, tail, NUM_UPD_BUF) >= 1) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+		mask = EPOLLIN | EPOLLRDNORM;
+#else
+		mask = POLLIN | POLLRDNORM;
+#endif
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
-	return EPOLLIN | EPOLLRDNORM;
-#else
-	return POLLIN | POLLRDNORM;
-#endif
+	return mask;
 }
 
 static dev_t                        dev;

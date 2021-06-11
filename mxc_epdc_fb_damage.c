@@ -26,6 +26,17 @@
 
 #include "mxc_epdc_fb_damage.h"
 
+// Sanity checks that the version checking is okay
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#	pragma message("Targeting Linux >= 3.14.0")
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#	pragma message("Targeting Linux >= 3.19.0")
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+#	pragma message("Targeting Linux >= 4.16.0")
+#endif
+
 static int fbnode = 0;
 module_param(fbnode, int, 0444);
 MODULE_PARM_DESC(fbnode, "Framebuffer index (Defaults to 0, i.e., fb0)");

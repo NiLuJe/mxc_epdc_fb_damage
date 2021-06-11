@@ -74,10 +74,12 @@ static int
     fbdamage_open(struct inode* inode, struct file* filp)
 {
 	if (atomic_xchg(&readers, 1)) {
-		return -ENODEV;
+		// We're already open'ed by something!
+		return -EBUSY;
 	}
 	return 0;
 }
+
 static int
     fbdamage_release(struct inode* inode, struct file* filp)
 {

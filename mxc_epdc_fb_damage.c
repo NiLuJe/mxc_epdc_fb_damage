@@ -49,7 +49,7 @@ static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
-	if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
+	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		int head = damage_circ.head;
 		/* Said locking provide the needed ordering. */
@@ -60,8 +60,22 @@ static int
 #endif
 		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
-			(void) !copy_from_user(
-			    &damage_circ.buffer[head].data, (void __user*) arg, sizeof(damage_circ.buffer[head].data));
+			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
+				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1_NTX;
+				(void) !copy_from_user(&damage_circ.buffer[head].data.v1_ntx,
+						       (void __user*) arg,
+						       sizeof(damage_circ.buffer[head].data.v1_ntx));
+			} else if (cmd == MXCFB_SEND_UPDATE_V1) {
+				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1;
+				(void) !copy_from_user(&damage_circ.buffer[head].data.v1,
+						       (void __user*) arg,
+						       sizeof(damage_circ.buffer[head].data.v1));
+			} else if (cmd == MXCFB_SEND_UPDATE_V2) {
+				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V2;
+				(void) !copy_from_user(&damage_circ.buffer[head].data.v2,
+						       (void __user*) arg,
+						       sizeof(damage_circ.buffer[head].data.v2));
+			}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 			smp_store_release(&damage_circ.head, (head + 1) & (DMG_BUF_SIZE - 1));
 #else

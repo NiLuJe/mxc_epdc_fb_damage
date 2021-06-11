@@ -12,14 +12,23 @@
 
 #include "FBInk/eink/mxcfb-kobo.h"
 
-// FIXME: Handle the EPDCv2 ioctls & data format.
-//        Either use an union of the two different structs, or flatten everything to a custom full strruct defined here.
-//        (an union probably makes the copy easier in the module, but reads slightly more annoying to handle,
-//         as we'd have to add a new field describing the data format or something).
+typedef enum
+{
+	DAMAGE_UPDATE_DATA_V1_NTX = 0,
+	DAMAGE_UPDATE_DATA_V1,
+	DAMAGE_UPDATE_DATA_V2,
+} mxcfb_damage_data_format;
+
 typedef struct
 {
-	int                             overflow_notify;
-	struct mxcfb_update_data_v1_ntx data;
+	int                      overflow_notify;
+	mxcfb_damage_data_format format;
+	union
+	{
+		struct mxcfb_update_data_v1_ntx v1_ntx;
+		struct mxcfb_update_data_v1     v1;
+		struct mxcfb_update_data        v2;
+	} data;
 } mxcfb_damage_update;
 
 #endif

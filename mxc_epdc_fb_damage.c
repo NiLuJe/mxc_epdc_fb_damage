@@ -68,13 +68,9 @@ static int
 				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1_NTX;
 
-					memcpy(&damage_circ.buffer[head].data.update_region,
-					       &v1_ntx.update_region,
-					       sizeof(v1_ntx.update_region));
-					damage_circ.buffer[head].data.waveform_mode = v1_ntx.waveform_mode;
-					damage_circ.buffer[head].data.update_mode   = v1_ntx.update_mode;
-					damage_circ.buffer[head].data.update_marker = v1_ntx.update_marker;
-					damage_circ.buffer[head].data.flags         = v1_ntx.flags;
+					memcpy(&damage_circ.buffer[head].data,
+					       &v1_ntx,
+					       offsetof(__typeof__(v1_ntx), alt_buffer_data));
 
 					// V2 only
 					damage_circ.buffer[head].data.dither_mode = 0;
@@ -94,11 +90,7 @@ static int
 
 					memcpy(&damage_circ.buffer[head].data.update_region,
 					       &v1.update_region,
-					       sizeof(v1.update_region));
-					damage_circ.buffer[head].data.waveform_mode = v1.waveform_mode;
-					damage_circ.buffer[head].data.update_mode   = v1.update_mode;
-					damage_circ.buffer[head].data.update_marker = v1.update_marker;
-					damage_circ.buffer[head].data.flags         = v1.flags;
+					       offsetof(__typeof__(v1), alt_buffer_data));
 
 					// V2 only
 					damage_circ.buffer[head].data.dither_mode = 0;
@@ -123,13 +115,7 @@ static int
 
 					memcpy(&damage_circ.buffer[head].data.update_region,
 					       &v2.update_region,
-					       sizeof(v2.update_region));
-					damage_circ.buffer[head].data.waveform_mode = v2.waveform_mode;
-					damage_circ.buffer[head].data.update_mode   = v2.update_mode;
-					damage_circ.buffer[head].data.update_marker = v2.update_marker;
-					damage_circ.buffer[head].data.flags         = v2.flags;
-					damage_circ.buffer[head].data.dither_mode   = v2.dither_mode;
-					damage_circ.buffer[head].data.quant_bit     = v2.quant_bit;
+					       offsetof(__typeof__(v2), alt_buffer_data));
 
 					// V1 NTX only
 					damage_circ.buffer[head].data.alt_buffer_data.virt_addr = NULL;

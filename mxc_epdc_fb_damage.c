@@ -28,7 +28,7 @@ module_param(fbnode, int, 0);
 static atomic_t overflows = ATOMIC_INIT(0);
 
 // Matches EPDC_V2_MAX_NUM_UPDATES
-#define NUM_UPD_BUF 64
+#define DMG_BUF_SIZE 64
 /* For simplicity in read(), we store mxcfb_damage_update rather than mxcfb_update_data.
  *
  * The overflow_notify field is populated by read() and hence usually useless.
@@ -40,7 +40,7 @@ typedef struct
 	int                  tail;
 } mxcfb_damage_circ_buf;
 
-static mxcfb_damage_update   damage_buffer[NUM_UPD_BUF];
+static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];
 static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
@@ -58,15 +58,15 @@ static int
 #else
 		int tail = ACCESS_ONCE(damage_circ.tail);
 #endif
-		if (CIRC_SPACE(head, tail, NUM_UPD_BUF) >= 1) {
+		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
 			(void) !copy_from_user(
 			    &damage_circ.buffer[head].data, (void __user*) arg, sizeof(damage_circ.buffer[head].data));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-			smp_store_release(&damage_circ.head, (head + 1) & (NUM_UPD_BUF - 1));
+			smp_store_release(&damage_circ.head, (head + 1) & (DMG_BUF_SIZE - 1));
 #else
 			smp_wmb(); /* commit the item before incrementing the head */
-			ACCESS_ONCE(damage_circ.head) = (head + 1) & (NUM_UPD_BUF - 1);
+			ACCESS_ONCE(damage_circ.head) = (head + 1) & (DMG_BUF_SIZE - 1);
 #endif
 		} else {
 			atomic_inc(&overflows);
@@ -115,7 +115,7 @@ static ssize_t
 	head = ACCESS_ONCE(damage_circ.head);
 #endif
 	tail = damage_circ.tail;
-	while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
+	while (!CIRC_CNT(head, tail, DMG_BUF_SIZE)) {
 		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up,
 		// (at which point we'll be guaranteed to have something to read).
 
@@ -126,10 +126,10 @@ static ssize_t
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		if (wait_event_interruptible(
-			listen_queue, (CIRC_CNT(smp_load_acquire(&damage_circ.head), damage_circ.tail, NUM_UPD_BUF)))) {
+			listen_queue, (CIRC_CNT(smp_load_acquire(&damage_circ.head), damage_circ.tail, DMG_BUF_SIZE)))) {
 #else
 		if (wait_event_interruptible(listen_queue,
-					     (CIRC_CNT(ACCESS_ONCE(damage_circ.head), damage_circ.tail, NUM_UPD_BUF)))) {
+					     (CIRC_CNT(ACCESS_ONCE(damage_circ.head), damage_circ.tail, DMG_BUF_SIZE)))) {
 #endif
 			return -ERESTARTSYS;
 		}
@@ -153,10 +153,10 @@ static ssize_t
 	}
 	/* Finish reading descriptor before incrementing tail. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	smp_store_release(&damage_circ.tail, (tail + 1) & (NUM_UPD_BUF - 1));
+	smp_store_release(&damage_circ.tail, (tail + 1) & (DMG_BUF_SIZE - 1));
 #else
 	smp_mb(); /* finish reading descriptor before incrementing tail */
-	ACCESS_ONCE(damage_circ.tail) = (tail + 1) & (NUM_UPD_BUF - 1);
+	ACCESS_ONCE(damage_circ.tail) = (tail + 1) & (DMG_BUF_SIZE - 1);
 #endif
 	return sizeof(mxcfb_damage_update);
 }
@@ -185,7 +185,7 @@ static unsigned int
 	head = ACCESS_ONCE(damage_circ.head);
 #endif
 	tail = damage_circ.tail;
-	if (CIRC_CNT(head, tail, NUM_UPD_BUF) >= 1) {
+	if (CIRC_CNT(head, tail, DMG_BUF_SIZE) >= 1) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 		mask = EPOLLIN | EPOLLRDNORM;
 #else

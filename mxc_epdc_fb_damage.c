@@ -8,8 +8,10 @@
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/poll.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#include <linux/wait.h>
 
 #include "mxc_epdc_fb_damage.h"
 
@@ -63,7 +65,11 @@ static int
 			atomic_inc(&overflows);
 		}
 		/* wake_up() will make sure that the head is committed before waking anyone up */
-		wake_up(&listen_queue);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+		wake_up_interruptible_poll(&listen_queue, EPOLLIN | EPOLLRDNORM);
+#else
+		wake_up_interruptible_poll(&listen_queue, POLLIN | POLLRDNORM);
+#endif
 	}
 	return ret;
 }
@@ -71,7 +77,7 @@ static int
 static atomic_t readers = ATOMIC_INIT(0);
 
 static int
-    fbdamage_open(struct inode* inode, struct file* filp)
+    fbdamage_open(struct inode* inode, struct file* file)
 {
 	if (atomic_xchg(&readers, 1)) {
 		// We're already open'ed by something!
@@ -81,14 +87,14 @@ static int
 }
 
 static int
-    fbdamage_release(struct inode* inode, struct file* filp)
+    fbdamage_release(struct inode* inode, struct file* file)
 {
 	atomic_xchg(&readers, 0);
 	return 0;
 }
 
 static ssize_t
-    fbdamage_read(struct file* filp, char __user* buff, size_t count, loff_t* offp)
+    fbdamage_read(struct file* file, char __user* buffer, size_t count, loff_t* ppos)
 {
 	int head, tail;
 	if (count < sizeof(mxcfb_damage_update)) {
@@ -129,7 +135,7 @@ static ssize_t
 
 	/* extract one item from the buffer */
 	damage_circ.buffer[tail].overflow_notify = atomic_xchg(&overflows, 0);
-	if (copy_to_user(buff, &damage_circ.buffer[tail], sizeof(mxcfb_damage_update))) {
+	if (copy_to_user(buffer, &damage_circ.buffer[tail], sizeof(mxcfb_damage_update))) {
 		return -EFAULT;
 	}
 	/* Finish reading descriptor before incrementing tail. */
@@ -142,6 +148,36 @@ static ssize_t
 	return sizeof(mxcfb_damage_update);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+static __poll_t
+#else
+static unsigned int
+#endif
+    fbdamage_poll(struct file* file, poll_table* wait)
+{
+	int head, tail;
+	/* no need for locks, since we only allow one reader */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	/* read index before reading contents at that index */
+	head = smp_load_acquire(&damage_circ.head);
+#else
+	head = ACCESS_ONCE(damage_circ.head);
+#endif
+	tail = damage_circ.tail;
+	if (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
+		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up
+		poll_wait(file, &listen_queue, wait);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+		return EPOLLIN | EPOLLRDNORM;
+#else
+		return POLLIN | POLLRDNORM;
+#endif
+	} else {
+		return 0;
+	}
+}
+
 static dev_t                        dev;
 static struct class*                fbdamage_class;
 static struct device*               fbdamage_device;
@@ -150,7 +186,8 @@ static struct cdev                  cdev;
 static const struct file_operations fbdamage_fops = { .owner   = THIS_MODULE,
 						      .open    = fbdamage_open,
 						      .read    = fbdamage_read,
-						      .release = fbdamage_release };
+						      .release = fbdamage_release,
+						      .poll    = fbdamage_poll };
 
 int
     init_module(void)
@@ -181,6 +218,12 @@ int
 void
     cleanup_module(void)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
+	wake_up_interruptible_poll(&listen_queue, EPOLLHUP | EPOLLERR);
+#else
+	wake_up_interruptible_poll(&listen_queue, POLLHUP | POLLERR);
+#endif
+
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);

@@ -54,6 +54,7 @@ int
 			if (errno == EINTR) {
 				continue;
 			}
+
 			perror("poll");
 			ret = EXIT_FAILURE;
 			goto cleanup;
@@ -63,7 +64,37 @@ int
 			if (pfd.revents & POLLIN) {
 				mxcfb_damage_update damage = { 0 };
 
-				while (read(fd, &damage, sizeof(damage)) == sizeof(damage)) {
+				while (true) {
+					ssize_t len = read(fd, &damage, sizeof(damage));
+
+					if (len < 0) {
+						if (errno == EAGAIN) {
+							// Damage ring buffer drained, back to poll!
+							break;
+						}
+
+						perror("read");
+						ret = EXIT_FAILURE;
+						goto cleanup;
+					}
+
+					if (len == 0) {
+						// Should never happen
+						errno = EPIPE;
+						perror("read");
+						ret = EXIT_FAILURE;
+						goto cleanup;
+					}
+
+					if (len != sizeof(damage)) {
+						// Should *also* never happen ;p.
+						errno = EINVAL;
+						perror("read");
+						ret = EXIT_FAILURE;
+						goto cleanup;
+					}
+
+					// Phew, we're good!
 					printf(
 					    "MXCFB_SEND_UPDATE_V1_NTX: overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
 					    damage.overflow_notify,

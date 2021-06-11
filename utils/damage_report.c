@@ -83,12 +83,15 @@ int
 					}
 
 					// Phew, we're good!
+					printf("[%llu.%.9llu ->",
+					       damage.timestamp / NSEC_PER_SEC,
+					       damage.timestamp % NSEC_PER_SEC);
 					time_t     t   = time(NULL);
 					struct tm* tmp = localtime(&t);
 					char       time_str[64];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-y2k"
-					if (strftime(time_str, sizeof(time_str), "%x %X ", tmp) == 0) {
+					if (strftime(time_str, sizeof(time_str), " %x %X] ", tmp) == 0) {
 #pragma GCC diagnostic pop
 						perror("strftime");
 						ret = EXIT_FAILURE;

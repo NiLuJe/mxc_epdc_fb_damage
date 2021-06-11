@@ -10,6 +10,7 @@
 
 #ifndef __KERNEL__
 #	include <stdint.h>
+#	define NSEC_PER_SEC 1000000000ULL
 #endif
 
 // Indicates the ioctl variant used (per damage event).
@@ -65,6 +66,7 @@ typedef struct
 {
 	int overflow_notify;    // Will be set to the amount of lost events when the buffer isn't drained fast enough
 	mxcfb_damage_data_format format;
+	uint64_t                 timestamp;    // In nanoseconds, time reference is CLOCK_MONOTONIC
 	mxcfb_damage_data        data;
 } mxcfb_damage_update;
 

@@ -17,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/poll.h>
+#include <linux/time.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
@@ -59,6 +60,11 @@ static int
 #endif
 		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
+
+			// Start with a timestamp, in a way that evacuates most of the 64-bit ktime_t compat concerns...
+			// (There's only a minor s64 vs. u64 change, which should be mostly irrelevant here).
+			damage_circ.buffer[head].timestamp = ktime_to_ns(ktime_get());
+
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 				struct mxcfb_update_data_v1_ntx v1_ntx;
 				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {

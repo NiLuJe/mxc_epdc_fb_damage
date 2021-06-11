@@ -1,3 +1,10 @@
+/*
+	mxc_epdc_fb_damage: Userspace access to framebuffer damage information on i.MX EPDCs
+	Based on original work by @pl-semiotics <https://github.com/pl-semiotics/mxc_epdc_fb_damage>.
+	Kobo port copyright (C) 2021 NiLuJe <ninuje@gmail.com>
+	SPDX-License-Identifier: GPL-2.0-only
+*/
+
 // For KDevelop's sake...
 #ifndef __KERNEL__
 #	define __KERNEL__
@@ -113,7 +120,7 @@ static ssize_t
 		// (at which point we'll be guaranteed to have something to read).
 
 		if (file->f_flags & O_NONBLOCK) {
-			// Except if we were open'ed in non-blocking mode...
+			// Except if we were open'ed in non-blocking mode, of course...
 			return -EAGAIN;
 		}
 

@@ -36,6 +36,8 @@ int
 {
 	int ret = EXIT_SUCCESS;
 
+	// NOTE: This exercises a full NONBLOCK poll + read workflow (with, err, *extensive* error handling),
+	//       but you can also do blocking read() calls if that's more your speed ;).
 	int fd = open("/dev/fbdamage", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 	if (fd == -1) {
 		perror("open");

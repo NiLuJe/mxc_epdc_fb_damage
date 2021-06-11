@@ -15,11 +15,11 @@
 // Indicates the ioctl variant used (per damage event).
 typedef enum
 {
-	DAMAGE_UPDATE_DATA_V1_NTX = 0,
-	DAMAGE_UPDATE_DATA_V1,
+	DAMAGE_UPDATE_DATA_UNKNOWN = 0,
+	DAMAGE_UPDATE_DATA_V1_NTX,
+	DAMAGE_UPDATE_DATA_V1,    // Nothing should actually use this one in practice, even on the Aura
 	DAMAGE_UPDATE_DATA_V2,
-	DAMAGE_UPDATE_DATA_ERROR,
-	DAMAGE_UPDATE_DATA_UNKNOWN = 0xFF,
+	DAMAGE_UPDATE_DATA_ERROR = 0xFF,
 } mxcfb_damage_data_format;
 
 // NOTE: We mimic these mxcfb structs because there are minor variants depending on the exact ioctl being used,
@@ -39,7 +39,7 @@ typedef struct
 // Maps to an mxcfb_alt_buffer_data
 typedef struct
 {
-	void*             virt_addr;    // Only w/ V1_NTX
+	void*             virt_addr;    // Only w/ V1_NTX (and always NULL anyway)
 	uint32_t          phys_addr;
 	uint32_t          width;
 	uint32_t          height;

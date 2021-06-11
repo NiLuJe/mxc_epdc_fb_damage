@@ -39,7 +39,7 @@ typedef struct
 // Maps to an mxcfb_alt_buffer_data
 typedef struct
 {
-	void*             virt_addr;
+	void*             virt_addr;    // Only w/ V1_NTX
 	uint32_t          phys_addr;
 	uint32_t          width;
 	uint32_t          height;
@@ -55,8 +55,8 @@ typedef struct
 	uint32_t              update_marker;
 	int                   temp;
 	unsigned int          flags;
-	int                   dither_mode;
-	int                   quant_bit;
+	int                   dither_mode;    // Only w/ V2
+	int                   quant_bit;      // Only w/ V2
 	mxcfb_damage_alt_data alt_buffer_data;
 } mxcfb_damage_data;
 

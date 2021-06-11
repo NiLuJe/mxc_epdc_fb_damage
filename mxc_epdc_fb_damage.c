@@ -89,8 +89,8 @@ static int
 				if (!copy_from_user(&v1, (void __user*) arg, sizeof(v1))) {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1;
 
-					memcpy(&damage_circ.buffer[head].data.update_region,
-					       &v1.update_region,
+					memcpy(&damage_circ.buffer[head].data,
+					       &v1,
 					       offsetof(__typeof__(v1), alt_buffer_data));
 
 					// V2 only
@@ -115,8 +115,8 @@ static int
 				if (!copy_from_user(&v2, (void __user*) arg, sizeof(v2))) {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V2;
 
-					memcpy(&damage_circ.buffer[head].data.update_region,
-					       &v2.update_region,
+					memcpy(&damage_circ.buffer[head].data,
+					       &v2,
 					       offsetof(__typeof__(v2), alt_buffer_data));
 
 					// V1 NTX only

@@ -193,7 +193,6 @@ static dev_t                        dev;
 static struct class*                fbdamage_class;
 static struct device*               fbdamage_device;
 static struct cdev                  cdev;
-// TODO: Add a poll handler.
 static const struct file_operations fbdamage_fops = { .owner   = THIS_MODULE,
 						      .open    = fbdamage_open,
 						      .read    = fbdamage_read,

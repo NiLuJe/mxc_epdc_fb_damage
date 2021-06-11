@@ -63,7 +63,7 @@ typedef struct
 // And, finally, this is what read() will spit out :).
 typedef struct
 {
-	int                      overflow_notify;
+	int overflow_notify;    // Will be set to the amount of lost events when the buffer isn't drained fast enough
 	mxcfb_damage_data_format format;
 	mxcfb_damage_data        data;
 } mxcfb_damage_update;

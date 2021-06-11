@@ -32,10 +32,6 @@ static atomic_t overflows = ATOMIC_INIT(0);
 
 // Matches EPDC_V2_MAX_NUM_UPDATES
 #define DMG_BUF_SIZE 64
-/* For simplicity in read(), we store mxcfb_damage_update rather than mxcfb_update_data.
- *
- * The overflow_notify field is populated by read() and hence usually useless.
- */
 typedef struct
 {
 	mxcfb_damage_update* buffer;
@@ -43,7 +39,7 @@ typedef struct
 	int                  tail;
 } mxcfb_damage_circ_buf;
 
-static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];
+static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];    // ~6KB
 static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);

@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "../mxc_epdc_fb_damage.h"
@@ -82,12 +83,25 @@ int
 					}
 
 					// Phew, we're good!
+					time_t     t   = time(NULL);
+					struct tm* tmp = localtime(&t);
+					char       time_str[64];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-y2k"
+					if (strftime(time_str, sizeof(time_str), "%x %X ", tmp) == 0) {
+#pragma GCC diagnostic pop
+						perror("strftime");
+						ret = EXIT_FAILURE;
+						goto cleanup;
+					}
+					fputs(time_str, stdout);
+
 					if (damage.format == DAMAGE_UPDATE_DATA_V1_NTX) {
-						printf("MXCFB_SEND_UPDATE_V1_NTX: ");
+						fputs("MXCFB_SEND_UPDATE_V1_NTX: ", stdout);
 					} else if (damage.format == DAMAGE_UPDATE_DATA_V1) {
-						printf("MXCFB_SEND_UPDATE_V1: ");
+						fputs("MXCFB_SEND_UPDATE_V1: ", stdout);
 					} else if (damage.format == DAMAGE_UPDATE_DATA_V2) {
-						printf("MXCFB_SEND_UPDATE_V2: ");
+						fputs("MXCFB_SEND_UPDATE_V2: ", stdout);
 					} else {
 						printf("Unknown damage data format: %d!\n", damage.format);
 						ret = EXIT_FAILURE;

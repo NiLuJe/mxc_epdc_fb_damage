@@ -83,9 +83,12 @@ int
 					}
 
 					// Phew, we're good!
+					// Start with some timestamps (first, the actual event's timestamp, MONOTONIC)
 					printf("[%llu.%.9llu ->",
 					       damage.timestamp / NSEC_PER_SEC,
 					       damage.timestamp % NSEC_PER_SEC);
+
+					// Then now (REALTIME)
 					time_t     t   = time(NULL);
 					struct tm* tmp = localtime(&t);
 					char       time_str[64];

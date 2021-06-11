@@ -111,6 +111,12 @@ static ssize_t
 	while (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
 		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up,
 		// (at which point we'll be guaranteed to have something to read).
+
+		if (file->f_flags & O_NONBLOCK) {
+			// Except if we were open'ed in non-blocking mode...
+			return -EAGAIN;
+		}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		if (wait_event_interruptible(
 			listen_queue, (CIRC_CNT(smp_load_acquire(&damage_circ.head), damage_circ.tail, NUM_UPD_BUF)))) {
@@ -167,15 +173,13 @@ static unsigned int
 	if (!CIRC_CNT(head, tail, NUM_UPD_BUF)) {
 		// If the ring buffer is currently empty, wait for fb_ioctl to wake us up
 		poll_wait(file, &listen_queue, wait);
+	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
-		return EPOLLIN | EPOLLRDNORM;
+	return EPOLLIN | EPOLLRDNORM;
 #else
-		return POLLIN | POLLRDNORM;
+	return POLLIN | POLLRDNORM;
 #endif
-	} else {
-		return 0;
-	}
 }
 
 static dev_t                        dev;
@@ -218,12 +222,6 @@ int
 void
     cleanup_module(void)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
-	wake_up_interruptible_poll(&listen_queue, EPOLLHUP | EPOLLERR);
-#else
-	wake_up_interruptible_poll(&listen_queue, POLLHUP | POLLERR);
-#endif
-
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);

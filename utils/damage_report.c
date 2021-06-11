@@ -83,76 +83,40 @@ int
 
 					// Phew, we're good!
 					if (damage.format == DAMAGE_UPDATE_DATA_V1_NTX) {
-						printf(
-						    "MXCFB_SEND_UPDATE_V1_NTX: overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
-						    damage.overflow_notify,
-						    damage.data.update_region.top,
-						    damage.data.update_region.left,
-						    damage.data.update_region.width,
-						    damage.data.update_region.height,
-						    damage.data.waveform_mode,
-						    damage.data.update_mode,
-						    damage.data.update_marker,
-						    damage.data.temp,
-						    damage.data.flags,
-						    damage.data.alt_buffer_data.virt_addr,
-						    damage.data.alt_buffer_data.phys_addr,
-						    damage.data.alt_buffer_data.width,
-						    damage.data.alt_buffer_data.height,
-						    damage.data.alt_buffer_data.alt_update_region.top,
-						    damage.data.alt_buffer_data.alt_update_region.left,
-						    damage.data.alt_buffer_data.alt_update_region.width,
-						    damage.data.alt_buffer_data.alt_update_region.height);
+						printf("MXCFB_SEND_UPDATE_V1_NTX: ");
 					} else if (damage.format == DAMAGE_UPDATE_DATA_V1) {
-						// No void *virt_addr in alt_buffer_data
-						printf(
-						    "MXCFB_SEND_UPDATE_V1: overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, alt_buffer_data={phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
-						    damage.overflow_notify,
-						    damage.data.update_region.top,
-						    damage.data.update_region.left,
-						    damage.data.update_region.width,
-						    damage.data.update_region.height,
-						    damage.data.waveform_mode,
-						    damage.data.update_mode,
-						    damage.data.update_marker,
-						    damage.data.temp,
-						    damage.data.flags,
-						    damage.data.alt_buffer_data.phys_addr,
-						    damage.data.alt_buffer_data.width,
-						    damage.data.alt_buffer_data.height,
-						    damage.data.alt_buffer_data.alt_update_region.top,
-						    damage.data.alt_buffer_data.alt_update_region.left,
-						    damage.data.alt_buffer_data.alt_update_region.width,
-						    damage.data.alt_buffer_data.alt_update_region.height);
+						printf("MXCFB_SEND_UPDATE_V1: ");
 					} else if (damage.format == DAMAGE_UPDATE_DATA_V2) {
-						// No void *virt_addr in alt_buffer_data
-						// int dither_mode & int quant_bit before alt_buffer_data
-						printf(
-						    "MXCFB_SEND_UPDATE_V2: overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, dither_mode=%d, quant_bit=%d, alt_buffer_data={phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
-						    damage.overflow_notify,
-						    damage.data.update_region.top,
-						    damage.data.update_region.left,
-						    damage.data.update_region.width,
-						    damage.data.update_region.height,
-						    damage.data.waveform_mode,
-						    damage.data.update_mode,
-						    damage.data.update_marker,
-						    damage.data.temp,
-						    damage.data.flags,
-						    damage.data.dither_mode,
-						    damage.data.quant_bit,
-						    damage.data.alt_buffer_data.phys_addr,
-						    damage.data.alt_buffer_data.width,
-						    damage.data.alt_buffer_data.height,
-						    damage.data.alt_buffer_data.alt_update_region.top,
-						    damage.data.alt_buffer_data.alt_update_region.left,
-						    damage.data.alt_buffer_data.alt_update_region.width,
-						    damage.data.alt_buffer_data.alt_update_region.height);
+						printf("MXCFB_SEND_UPDATE_V2: ");
 					} else {
 						printf("Unknown damage data format: %d!\n", damage.format);
 						ret = EXIT_FAILURE;
 						goto cleanup;
 					}
+
+					// NOTE: We print all the fields, no matter the actual data format (the module ensures they're set to sane defaults).
+					printf(
+					    "overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, dither_mode=%d, quant_bit=%d, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
+					    damage.overflow_notify,
+					    damage.data.update_region.top,
+					    damage.data.update_region.left,
+					    damage.data.update_region.width,
+					    damage.data.update_region.height,
+					    damage.data.waveform_mode,
+					    damage.data.update_mode,
+					    damage.data.update_marker,
+					    damage.data.temp,
+					    damage.data.flags,
+					    damage.data.dither_mode,
+					    damage.data.quant_bit,
+					    damage.data.alt_buffer_data.virt_addr,
+					    damage.data.alt_buffer_data.phys_addr,
+					    damage.data.alt_buffer_data.width,
+					    damage.data.alt_buffer_data.height,
+					    damage.data.alt_buffer_data.alt_update_region.top,
+					    damage.data.alt_buffer_data.alt_update_region.left,
+					    damage.data.alt_buffer_data.alt_update_region.width,
+					    damage.data.alt_buffer_data.alt_update_region.height);
 				}
 			}
 		}

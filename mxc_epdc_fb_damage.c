@@ -68,6 +68,7 @@ static int
 				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_V1_NTX;
 
+					// Take a shortcut as the layouts match up to the source's alt_buffer_data
 					memcpy(&damage_circ.buffer[head].data,
 					       &v1_ntx,
 					       offsetof(__typeof__(v1_ntx), alt_buffer_data));
@@ -99,6 +100,7 @@ static int
 					// V1 NTX only
 					damage_circ.buffer[head].data.alt_buffer_data.virt_addr = NULL;
 
+					// Take a shortcut as the layouts match starting from the target's alt_buffer_data.phys_addr
 					memcpy(&damage_circ.buffer[head].data.alt_buffer_data.phys_addr,
 					       &v1.alt_buffer_data,
 					       sizeof(v1.alt_buffer_data));

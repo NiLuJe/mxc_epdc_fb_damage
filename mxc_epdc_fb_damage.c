@@ -27,7 +27,8 @@
 #include "mxc_epdc_fb_damage.h"
 
 static int fbnode = 0;
-module_param(fbnode, int, 0);
+module_param(fbnode, int, 0444);
+MODULE_PARM_DESC(fbnode, "Framebuffer index (Defaults to 0, i.e., fb0)");
 
 static atomic_t overflows = ATOMIC_INIT(0);
 

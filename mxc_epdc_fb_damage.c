@@ -307,6 +307,16 @@ int
 		return ret;
 	}
 
+	// NOTE: This is going to be more annoying on sunxi...
+	//       The refresh ioctl commands are not sent to the framebuffer's character device,
+	//       but to a dedicated one (/dev/disp).
+	//       AFAICT, there's no easy way to get at its cdev or fops via some kind of lookup mechanism like
+	//       we can here via registered_fb...
+	//       But can we still monkey-patch its unlocked_ioctl file_operations pointer anyway,
+	//       possibly via file->f_op after a filp_open?
+	//       AFAICT, the only other pointer to fops is inode->i_cdev->ops,
+	//       but that's only available from within the device's actual open handler
+	//       (c.f., misc_open in drivers/char/misc.c)
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
 

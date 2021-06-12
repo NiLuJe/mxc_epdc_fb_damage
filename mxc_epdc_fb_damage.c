@@ -317,6 +317,7 @@ int
 	//       AFAICT, the only other pointer to fops is inode->i_cdev->ops,
 	//       but that's only available from within the device's actual open handler
 	//       (c.f., misc_open in drivers/char/misc.c)
+	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
 

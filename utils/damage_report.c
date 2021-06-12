@@ -109,7 +109,7 @@ int
 					} else if (damage.format == DAMAGE_UPDATE_DATA_V2) {
 						fputs("MXCFB_SEND_UPDATE_V2: ", stdout);
 					} else {
-						printf("Unknown damage data format: %d!\n", damage.format);
+						printf("Unknown damage data format: %u!\n", damage.format);
 						ret = EXIT_FAILURE;
 						goto cleanup;
 					}

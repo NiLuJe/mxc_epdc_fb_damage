@@ -65,7 +65,7 @@ typedef struct
 typedef struct
 {
 	int overflow_notify;    // Will be set to the amount of lost events when the buffer isn't drained fast enough
-	int queue_size;         // Will be set to the amount of damage events in the buffer *including* this one.
+	int queue_size;         // Will be set to the amount of damage events in the (kernel) buffer *including* this one.
 	mxcfb_damage_data_format format;
 	uint64_t                 timestamp;    // In nanoseconds, time reference is CLOCK_MONOTONIC
 	mxcfb_damage_data        data;

@@ -231,6 +231,7 @@ static ssize_t
 
 	/* extract one item from the buffer */
 	damage_circ.buffer[tail].overflow_notify = atomic_xchg(&overflows, 0);
+	damage_circ.buffer[tail].queue_size      = CIRC_CNT(head, tail, DMG_BUF_SIZE);
 	if (copy_to_user(buffer, &damage_circ.buffer[tail], sizeof(mxcfb_damage_update))) {
 		return -EFAULT;
 	}

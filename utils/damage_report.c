@@ -116,8 +116,9 @@ int
 
 					// NOTE: We print all the fields, no matter the actual data format (the module ensures they're set to sane defaults).
 					printf(
-					    "overflow_notify=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, dither_mode=%d, quant_bit=%d, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
+					    "overflow_notify=%d, queue_size=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, dither_mode=%d, quant_bit=%d, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
 					    damage.overflow_notify,
+					    damage.queue_size,
 					    damage.data.update_region.top,
 					    damage.data.update_region.left,
 					    damage.data.update_region.width,

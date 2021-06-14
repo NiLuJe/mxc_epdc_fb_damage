@@ -12,6 +12,9 @@ information from this module is
 [rM-vnc-server](https://github.com/peter-sa/rM-vnc-server), an
 efficient VNC server for the reMarkable tablet.
 
+And as far as this Kobo port is concerned, [NanoClock](https://github.com/NiLuJe/NanoClock),
+a persistent clock.
+
 # Interface
 
 When the module is loaded, it will inject damage recording

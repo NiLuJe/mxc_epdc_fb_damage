@@ -12,8 +12,12 @@ And as far as this Kobo port is concerned, [NanoClock](https://github.com/NiLuJe
 
 When the module is loaded, it will inject damage recording infrastructure to a framebuffer device `/dev/fbn` specified by the `fbnode` module parameter (which defaults to `0`).
 It will then create a `/dev/fbdamage` device, on which `read`s will block until damage is created.
-Each call to `read` will return a single [`struct mxcfb_damage_update`](./mxc_epdc_fb_damage.h).
-The `overflow_notify` member will be set if any updates have been discarded, and the `data` member will be set to the original `mxcfb_update_data` passed to the kernel in an `MXCFB_SEND_UPDATE` ioctl.
+Nonblocking `read`s and `poll` are *also* supported.
+Each call to `read` will return a single [`mxcfb_damage_update` struct](./mxc_epdc_fb_damage.h).
+The `data` member will be set to a custom [`mxcfb_damage_data` struct](./mxc_epdc_fb_damage.h), one that (mostly) matches the original `mxcfb_update_data` passed to the kernel in an `MXCFB_SEND_UPDATE` ioctl, but is defined entirely in the header, allowing you to *not* have to rely on kernel headers.
+This is also done in order to be able to handle the various different ioctl & struct layouts across Kobo generations.
+The `overflow_notify` member will be set if any updates have been discarded, and the `queue_size` member will be set to the amount of damage events in the kernel queue at `read` time (current one included, i.e., this will never be lower than 1).
+Both should help dealing sanely with late reads and ioctl storms.
 
 # Building
 

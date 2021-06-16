@@ -56,14 +56,16 @@ int
 					ssize_t len = read(fd, &damage, sizeof(damage));
 
 					if (len < 0) {
-						if (errno == EAGAIN) {
+						if (errno == EINTR) {
+							continue;
+						} else if (errno == EAGAIN) {
 							// Damage ring buffer drained, back to poll!
 							break;
+						} else {
+							perror("read");
+							ret = EXIT_FAILURE;
+							goto cleanup;
 						}
-
-						perror("read");
-						ret = EXIT_FAILURE;
-						goto cleanup;
 					}
 
 					if (len == 0) {

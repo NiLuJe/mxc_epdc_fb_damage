@@ -66,12 +66,23 @@ typedef struct
 static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];    // ~6KB
 static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
+#ifdef CONFIG_ARCH_SUNXI
+static long (*orig_disp_ioctl)(struct file* file, unsigned int cmd, unsigned long arg);
+#else
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
+#endif
 
+#ifdef CONFIG_ARCH_SUNXI
+static long
+    disp_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
+{
+	int ret = orig_disp_ioctl(file, cmd, arg);
+#else
 static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
+#endif
 #ifdef CONFIG_ARCH_SUNXI
 	if (cmd == DISP_EINK_UPDATE2) {
 #else
@@ -287,14 +298,14 @@ static unsigned int
 	/* read index before reading contents at that index */
 	head = smp_load_acquire(&damage_circ.head);
 #else
-	head = ACCESS_ONCE(damage_circ.head);
+	head              = ACCESS_ONCE(damage_circ.head);
 #endif
 	tail = damage_circ.tail;
 	if (CIRC_CNT(head, tail, DMG_BUF_SIZE) >= 1) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 		mask = EPOLLIN | EPOLLRDNORM;
 #else
-		mask = POLLIN | POLLRDNORM;
+                mask = POLLIN | POLLRDNORM;
 #endif
 	}
 
@@ -350,12 +361,12 @@ int
 		return -EINVAL;
 	}
 
-	orig_fb_ioctl            = fp->f_op->unlocked_ioctl;
-	fp->f_op->unlocked_ioctl = fb_ioctl;
+	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
+	fp->f_op->unlocked_ioctl = disp_ioctl;
 
 	filp_close(fp, NULL);
 #else
-	orig_fb_ioctl = registered_fb[fbnode]->fbops->fb_ioctl;
+	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
 #endif
 
@@ -379,11 +390,12 @@ void
 #ifdef CONFIG_ARCH_SUNXI
 	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
-		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
-		return -EINVAL;
+		pr_err(
+		    "mxc_epdc_fb_damage: cannot open: `/dev/disp` -> cannot restore original ioctl handler, expect breakage!\n");
+		return;
 	}
 
-	fp->f_op->unlocked_ioctl = orig_fb_ioctl;
+	fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 
 	filp_close(fp, NULL);
 #else

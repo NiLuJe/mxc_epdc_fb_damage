@@ -364,16 +364,16 @@ int
 		return -EINVAL;
 	}
 
-	// FIXME: Do we need to (can we even?) use the fops_get & replace_fops macros?
-	orig_disp_fops                   = fp->f_op;
-	orig_disp_ioctl                  = fp->f_op->unlocked_ioctl;
-	patched_disp_fops                = *fp->f_op;
+	orig_disp_fops                   = fops_get(fp->f_op);
+	orig_disp_ioctl                  = orig_disp_fops->unlocked_ioctl;
+	patched_disp_fops                = *orig_disp_fops;
 	patched_disp_fops.unlocked_ioctl = disp_ioctl;
-	fp->f_op                         = &patched_disp_fops;
+	replace_fops(fp, &patched_disp_fops);
 
 	pr_info("mxc_epdc_fb_damage: orig_disp_fops: %p\n", orig_disp_fops);
 	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
 	pr_info("mxc_epdc_fb_damage: patched_disp_fops: %p\n", &patched_disp_fops);
+	pr_info("mxc_epdc_fb_damage: new fp->f_op: %p\n", fp->f_op);
 
 	filp_close(fp, NULL);
 #else

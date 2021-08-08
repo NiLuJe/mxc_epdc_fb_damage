@@ -68,6 +68,8 @@ static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0,
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 #ifdef CONFIG_ARCH_SUNXI
 static long (*orig_disp_ioctl)(struct file* file, unsigned int cmd, unsigned long arg);
+static const struct file_operations* orig_disp_fops;
+static struct file_operations        patched_disp_fops;
 #else
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 #endif
@@ -361,8 +363,12 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
-	fp->f_op->unlocked_ioctl = disp_ioctl;
+	// FIXME: Do we need to (can we even?) use the fops_get & replace_fops macros?
+	orig_disp_fops                   = fp->f_op;
+	orig_disp_ioctl                  = fp->f_op->unlocked_ioctl;
+	patched_disp_fops                = *fp->f_op;
+	patched_disp_fops.unlocked_ioctl = disp_ioctl;
+	fp->f_op                         = &patched_disp_fops;
 
 	filp_close(fp, NULL);
 #else
@@ -391,11 +397,11 @@ void
 	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err(
-		    "mxc_epdc_fb_damage: cannot open: `/dev/disp` -> cannot restore original ioctl handler, expect breakage!\n");
+		    "mxc_epdc_fb_damage: cannot open: `/dev/disp` -> cannot restore original fops, expect breakage!\n");
 		return;
 	}
 
-	fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	fp->f_op = orig_disp_fops;
 
 	filp_close(fp, NULL);
 #else

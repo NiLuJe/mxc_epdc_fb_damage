@@ -315,6 +315,9 @@ int
     init_module(void)
 {
 	int ret;
+#ifdef CONFIG_ARCH_SUNXI
+	struct file* fp;
+#endif
 
 	if (!registered_fb[fbnode]) {
 		return -ENODEV;
@@ -341,7 +344,7 @@ int
 	//       (c.f., misc_open in drivers/char/misc.c)
 	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
 #ifdef CONFIG_ARCH_SUNXI
-	struct file* fp = filp_open("/dev/disp", O_RDONLY, 0);
+	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
 		return -EINVAL;
@@ -364,13 +367,17 @@ int
 void
     cleanup_module(void)
 {
+#ifdef CONFIG_ARCH_SUNXI
+	struct file* fp;
+#endif
+
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);
 	unregister_chrdev_region(dev, 1);
 
 #ifdef CONFIG_ARCH_SUNXI
-	struct file* fp = filp_open("/dev/disp", O_RDONLY, 0);
+	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
 		return -EINVAL;

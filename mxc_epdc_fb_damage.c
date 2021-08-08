@@ -363,8 +363,9 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_ioctl = fp->f_op->unlocked_ioctl;
-	//fp->f_op->unlocked_ioctl = disp_ioctl;
+	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
+	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
+	fp->f_op->unlocked_ioctl = disp_ioctl;
 	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
 	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
 
@@ -406,7 +407,7 @@ void
 	}
 
 	pr_info("mxc_epdc_fb_damage: fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
-	//fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 

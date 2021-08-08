@@ -41,6 +41,13 @@
 #	pragma message("Targeting Linux >= 4.16.0")
 #endif
 
+// Ditto for the sunxi check
+#ifdef CONFIG_ARCH_SUNXI
+#	pragma message("Targeting a sunxi kernel")
+#else
+#	pragma message("Targeting an NXP kernel")
+#endif
+
 static int fbnode = 0;
 module_param(fbnode, int, 0444);
 MODULE_PARM_DESC(fbnode, "Framebuffer index (Defaults to 0, i.e., fb0)");

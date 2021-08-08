@@ -20,6 +20,7 @@ typedef enum
 	DAMAGE_UPDATE_DATA_V1_NTX,
 	DAMAGE_UPDATE_DATA_V1,    // Nothing should actually use this one in practice, even on the Aura
 	DAMAGE_UPDATE_DATA_V2,
+	DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2,
 	DAMAGE_UPDATE_DATA_ERROR = 0xFF,
 } mxcfb_damage_data_format;
 

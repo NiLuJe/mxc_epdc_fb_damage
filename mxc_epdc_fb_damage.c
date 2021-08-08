@@ -22,7 +22,11 @@
 #include <linux/version.h>
 #include <linux/wait.h>
 
-#include "FBInk/eink/mxcfb-kobo.h"
+#ifdef CONFIG_ARCH_SUNXI
+#	include "FBInk/eink/sunxi-kobo.h"
+#else
+#	include "FBInk/eink/mxcfb-kobo.h"
+#endif
 
 #include "mxc_epdc_fb_damage.h"
 
@@ -61,7 +65,11 @@ static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
+#ifdef CONFIG_ARCH_SUNXI
+	if (cmd == DISP_EINK_UPDATE2) {
+#else
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
+#endif
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
 		int head = damage_circ.head;
 		/* Said locking provide the needed ordering. */
@@ -77,6 +85,10 @@ static int
 			// (There's only a minor s64 vs. u64 change, which should be mostly irrelevant here).
 			damage_circ.buffer[head].timestamp = ktime_to_ns(ktime_get());
 
+#ifdef CONFIG_ARCH_SUNXI
+			if (cmd == DISP_EINK_UPDATE2) {
+				pr_warn("mxc_epdc_fb_damage: intercepted a DISP_EINK_UPDATE2 ioctl\n");
+#else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 				struct mxcfb_update_data_v1_ntx v1_ntx;
 				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {
@@ -142,6 +154,7 @@ static int
 				} else {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
 				}
+#endif
 			} else {
 				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_UNKNOWN;
 			}
@@ -320,8 +333,21 @@ int
 	//       but that's only available from within the device's actual open handler
 	//       (c.f., misc_open in drivers/char/misc.c)
 	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
-	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
+#ifdef CONFIG_ARCH_SUNXI
+	struct file* fp = filp_open("/dev/disp", O_RDONLY, 0);
+	if (IS_ERR(fp)) {
+		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
+		return -EINVAL;
+	}
+
+	orig_fb_ioctl            = fp->f_op->unlocked_ioctl;
+	fp->f_op->unlocked_ioctl = fb_ioctl;
+
+	filp_close(fp, NULL);
+#else
+	orig_fb_ioctl = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
+#endif
 
 	fbdamage_class  = class_create(THIS_MODULE, "fbdamage");
 	fbdamage_device = device_create(fbdamage_class, NULL, dev, NULL, "fbdamage");
@@ -336,7 +362,19 @@ void
 	class_destroy(fbdamage_class);
 	unregister_chrdev_region(dev, 1);
 
+#ifdef CONFIG_ARCH_SUNXI
+	struct file* fp = filp_open("/dev/disp", O_RDONLY, 0);
+	if (IS_ERR(fp)) {
+		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
+		return -EINVAL;
+	}
+
+	fp->f_op->unlocked_ioctl = orig_fb_ioctl;
+
+	filp_close(fp, NULL);
+#else
 	registered_fb[fbnode]->fbops->fb_ioctl = orig_fb_ioctl;
+#endif
 }
 
 MODULE_LICENSE("GPL");

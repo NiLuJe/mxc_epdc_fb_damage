@@ -67,9 +67,8 @@ static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];    // ~6KB
 static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 #ifdef CONFIG_ARCH_SUNXI
-static long (*orig_disp_ioctl)(struct file* file, unsigned int cmd, unsigned long arg);
-static const struct file_operations* orig_disp_fops;
-static struct file_operations        patched_disp_fops;
+typedef long (*ioctl_handler_fn_t)(struct file* file, unsigned int cmd, unsigned long arg);
+static ioctl_handler_fn_t orig_disp_ioctl;
 #else
 static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 #endif
@@ -364,16 +363,16 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_fops                   = fops_get(fp->f_op);
-	orig_disp_ioctl                  = orig_disp_fops->unlocked_ioctl;
-	patched_disp_fops                = *orig_disp_fops;
-	patched_disp_fops.unlocked_ioctl = disp_ioctl;
-	replace_fops(fp, &patched_disp_fops);
+	orig_disp_ioctl = fp->f_op->unlocked_ioctl;
+	//fp->f_op->unlocked_ioctl = disp_ioctl;
+	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
+	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
 
-	pr_info("mxc_epdc_fb_damage: orig_disp_fops: %p\n", orig_disp_fops);
-	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
-	pr_info("mxc_epdc_fb_damage: patched_disp_fops: %p\n", &patched_disp_fops);
-	pr_info("mxc_epdc_fb_damage: new fp->f_op: %p\n", fp->f_op);
+	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p [%p] (%#lx)\n",
+		orig_disp_ioctl,
+		*(&fp->f_op->unlocked_ioctl),
+		*(uintptr_t*) &fp->f_op->unlocked_ioctl);
+	pr_info("mxc_epdc_fb_damage: new fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
 
 	filp_close(fp, NULL);
 #else
@@ -406,8 +405,10 @@ void
 		return;
 	}
 
-	pr_info("mxc_epdc_fb_damage: fp->f_op: %p\n", fp->f_op);
-	fp->f_op = orig_disp_fops;
+	pr_info("mxc_epdc_fb_damage: fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
+	//fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 
 	filp_close(fp, NULL);
 #else

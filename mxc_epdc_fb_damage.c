@@ -86,6 +86,7 @@ static int
 	int ret = orig_fb_ioctl(info, cmd, arg);
 #endif
 #ifdef CONFIG_ARCH_SUNXI
+	pr_info("disp_ioctl: cmd: %#x // arg: %#lx\n", cmd, arg);
 	if (cmd == DISP_EINK_UPDATE2) {
 #else
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
@@ -370,6 +371,10 @@ int
 	patched_disp_fops.unlocked_ioctl = disp_ioctl;
 	fp->f_op                         = &patched_disp_fops;
 
+	pr_info("mxc_epdc_fb_damage: orig_disp_fops: %p\n", orig_disp_fops);
+	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
+	pr_info("mxc_epdc_fb_damage: patched_disp_fops: %p\n", &patched_disp_fops);
+
 	filp_close(fp, NULL);
 #else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
@@ -401,6 +406,7 @@ void
 		return;
 	}
 
+	pr_info("mxc_epdc_fb_damage: fp->f_op: %p\n", fp->f_op);
 	fp->f_op = orig_disp_fops;
 
 	filp_close(fp, NULL);

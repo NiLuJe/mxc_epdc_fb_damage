@@ -329,7 +329,8 @@ int
 {
 	int ret;
 #ifdef CONFIG_ARCH_SUNXI
-	struct file* fp;
+	struct file*            fp;
+	//struct file_operations* f_ops;
 #endif
 
 	if (!registered_fb[fbnode]) {
@@ -363,16 +364,17 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
+	orig_disp_ioctl       = fp->f_op->unlocked_ioctl;
 	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
 	fp->f_op->unlocked_ioctl = disp_ioctl;
+	/*
+	f_ops                 = (struct file_operations*) fp->f_op;
+	f_ops->unlocked_ioctl = disp_ioctl;
+	*/
 	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
 	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
 
-	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p [%p] (%#lx)\n",
-		orig_disp_ioctl,
-		*(&fp->f_op->unlocked_ioctl),
-		*(uintptr_t*) &fp->f_op->unlocked_ioctl);
+	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
 	pr_info("mxc_epdc_fb_damage: new fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
 
 	filp_close(fp, NULL);
@@ -390,7 +392,8 @@ void
     cleanup_module(void)
 {
 #ifdef CONFIG_ARCH_SUNXI
-	struct file* fp;
+	struct file*            fp;
+	//struct file_operations* f_ops;
 #endif
 
 	cdev_del(&cdev);
@@ -408,6 +411,10 @@ void
 
 	pr_info("mxc_epdc_fb_damage: fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
 	fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	/*
+	f_ops                 = (struct file_operations*) fp->f_op;
+	f_ops->unlocked_ioctl = disp_ioctl;
+	*/
 	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 

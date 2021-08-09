@@ -365,7 +365,7 @@ int
 #ifdef CONFIG_ARCH_SUNXI
 	orig_disp_ioctl = disp_cdev->ops->unlocked_ioctl;
 
-	// NOTE: Since the file_operations struct is const, and disp_fops itself is static,
+	// NOTE: Since the file_operations struct is const, and disp_fops itself is static and const,
 	//       we can't touch it to simply update its unlocked_ioctl pointer, we have to replace it entirely...
 	// NOTE: That works, but only for *subsequent* DISP clients,
 	//       not existing ones (those are using their original file->f_op pointer copy done at open time)...

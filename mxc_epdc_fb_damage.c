@@ -366,6 +366,7 @@ int
 
 	orig_disp_ioctl       = fp->f_op->unlocked_ioctl;
 	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
+	//       And disp_fops is a static anyway, so, nope, not gonna happen.
 	fp->f_op->unlocked_ioctl = disp_ioctl;
 	/*
 	f_ops                 = (struct file_operations*) fp->f_op;

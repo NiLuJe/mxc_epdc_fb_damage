@@ -69,8 +69,14 @@ static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
 #ifdef CONFIG_ARCH_SUNXI
 typedef long (*ioctl_handler_fn_t)(struct file* file, unsigned int cmd, unsigned long arg);
 static ioctl_handler_fn_t orig_disp_ioctl;
+
+static const struct file_operations* orig_disp_fops;
+static struct file_operations        patched_disp_fops;
+
+static struct cdev* disp_cdev;
 #else
-static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
+typedef int (*ioctl_handler_fn_t)(struct fb_info* info, unsigned int cmd, unsigned long arg);
+static ioctl_handler_fn_t orig_fb_ioctl;
 #endif
 
 #ifdef CONFIG_ARCH_SUNXI
@@ -85,7 +91,7 @@ static int
 	int ret = orig_fb_ioctl(info, cmd, arg);
 #endif
 #ifdef CONFIG_ARCH_SUNXI
-	pr_info("disp_ioctl: cmd: %#x // arg: %#lx\n", cmd, arg);
+	pr_info("mxc_epdc_fb_damage: ran orig_disp_ioctl: cmd: %#x // arg: %#lx\n", cmd, arg);
 	if (cmd == DISP_EINK_UPDATE2) {
 #else
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
@@ -330,12 +336,21 @@ int
 	int ret;
 #ifdef CONFIG_ARCH_SUNXI
 	struct file* fp;
-	//struct file_operations* f_ops;
-#endif
 
+	fp = filp_open("/dev/disp", O_RDONLY, 0);
+	if (IS_ERR(fp)) {
+		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
+		return -ENODEV;
+	}
+
+	disp_cdev = fp->f_inode->i_cdev;
+
+	filp_close(fp, NULL);
+#else
 	if (!registered_fb[fbnode]) {
 		return -ENODEV;
 	}
+#endif
 
 	if ((ret = alloc_chrdev_region(&dev, 0, 1, "mxc_epdc_fb_damage"))) {
 		return ret;
@@ -359,31 +374,21 @@ int
 	//       (c.f., misc_open in drivers/char/misc.c)
 	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
 #ifdef CONFIG_ARCH_SUNXI
-	fp = filp_open("/dev/disp", O_RDONLY, 0);
-	if (IS_ERR(fp)) {
-		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
-		return -EINVAL;
-	}
+	orig_disp_ioctl = disp_cdev->ops->unlocked_ioctl;
 
-	orig_disp_ioctl = fp->f_op->unlocked_ioctl;
-	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
-	//       And disp_fops is a static anyway, so, nope, not gonna happen.
-	//fp->f_op->unlocked_ioctl = disp_ioctl;
-	/*
-	f_ops                 = (struct file_operations*) fp->f_op;
-	f_ops->unlocked_ioctl = disp_ioctl;
-	*/
-	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
-	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = disp_ioctl;
+	// NOTE: Since the file_operations struct is const, and disp_fops itself is static,
+	//       we can't touch it, we have to replace it entirely...
+	// NOTE: That works, but only for *subsequent* DISP clients, not existing ones...
+	//       Which means that unloading the module will horribly *break* existing clients, too...
+	orig_disp_fops                   = disp_cdev->ops;
+	patched_disp_fops                = *orig_disp_fops;
+	patched_disp_fops.unlocked_ioctl = disp_ioctl;
+	disp_cdev->ops                   = &patched_disp_fops;
 
 	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
-	pr_info("mxc_epdc_fb_damage: new fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
-	pr_info("mxc_epdc_fb_damage: fp->f_op: %p (@ %p)\n", fp->f_op, &fp->f_op);
-	pr_info("mxc_epdc_fb_damage: fp->f_inode->i_cdev->ops: %p (@ %p)\n",
-		fp->f_inode->i_cdev->ops,
-		&fp->f_inode->i_cdev->ops);
-
-	filp_close(fp, NULL);
+	pr_info("mxc_epdc_fb_damage: new disp_cdev->ops->unlocked_ioctl: %p\n", disp_cdev->ops->unlocked_ioctl);
+	pr_info("mxc_epdc_fb_damage: orig_disp_fops: %p\n", orig_disp_fops);
+	pr_info("mxc_epdc_fb_damage: new disp_cdev->ops: %p\n", disp_cdev->ops);
 #else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
@@ -397,34 +402,16 @@ int
 void
     cleanup_module(void)
 {
-#ifdef CONFIG_ARCH_SUNXI
-	struct file* fp;
-	//struct file_operations* f_ops;
-#endif
-
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);
 	unregister_chrdev_region(dev, 1);
 
 #ifdef CONFIG_ARCH_SUNXI
-	fp = filp_open("/dev/disp", O_RDONLY, 0);
-	if (IS_ERR(fp)) {
-		pr_err(
-		    "mxc_epdc_fb_damage: cannot open: `/dev/disp` -> cannot restore original fops, expect breakage!\n");
-		return;
-	}
-
-	pr_info("mxc_epdc_fb_damage: fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
-	//fp->f_op->unlocked_ioctl = orig_disp_ioctl;
-	/*
-	f_ops                 = (struct file_operations*) fp->f_op;
-	f_ops->unlocked_ioctl = disp_ioctl;
-	*/
-	//*(uintptr_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
-	//*(ioctl_handler_fn_t*) &fp->f_op->unlocked_ioctl = orig_disp_ioctl;
-
-	filp_close(fp, NULL);
+	pr_info("mxc_epdc_fb_damage: patched disp_cdev->ops: %p\n", disp_cdev->ops);
+	disp_cdev->ops = orig_disp_fops;
+	pr_info("mxc_epdc_fb_damage: restored restored disp_cdev->ops: %p\n", disp_cdev->ops);
+	pr_info("mxc_epdc_fb_damage: restored disp_cdev->ops->unlocked_ioctl: %p\n", disp_cdev->ops->unlocked_ioctl);
 #else
 	registered_fb[fbnode]->fbops->fb_ioctl = orig_fb_ioctl;
 #endif

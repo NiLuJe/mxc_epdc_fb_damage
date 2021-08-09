@@ -382,6 +382,8 @@ int
 	pr_info("mxc_epdc_fb_damage: new disp_cdev->ops: %p\n", disp_cdev->ops);
 #else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
+	// NOTE: Much like the file_operations above, this will become much hairier on newer kernels (>= 5.6),
+	//       since https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/include/linux/fb.h?id=bf9e25ec12877a622857460c2f542a6c31393250 made it const ;).
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
 #endif
 

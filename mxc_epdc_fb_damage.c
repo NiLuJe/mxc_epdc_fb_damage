@@ -365,10 +365,10 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
+	orig_disp_ioctl = fp->f_op->unlocked_ioctl;
 	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
 	//       And disp_fops is a static anyway, so, nope, not gonna happen.
-	fp->f_op->unlocked_ioctl = disp_ioctl;
+	//fp->f_op->unlocked_ioctl = disp_ioctl;
 	/*
 	f_ops                 = (struct file_operations*) fp->f_op;
 	f_ops->unlocked_ioctl = disp_ioctl;
@@ -378,6 +378,10 @@ int
 
 	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
 	pr_info("mxc_epdc_fb_damage: new fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
+	pr_info("mxc_epdc_fb_damage: fp->f_op: %p (@ %p)\n", fp->f_op, &fp->f_op);
+	pr_info("mxc_epdc_fb_damage: fp->f_inode->i_cdev->ops: %p (@ %p)\n",
+		fp->f_inode->i_cdev->ops,
+		&fp->f_inode->i_cdev->ops);
 
 	filp_close(fp, NULL);
 #else
@@ -412,7 +416,7 @@ void
 	}
 
 	pr_info("mxc_epdc_fb_damage: fp->f_op->unlocked_ioctl: %p\n", fp->f_op->unlocked_ioctl);
-	fp->f_op->unlocked_ioctl = orig_disp_ioctl;
+	//fp->f_op->unlocked_ioctl = orig_disp_ioctl;
 	/*
 	f_ops                 = (struct file_operations*) fp->f_op;
 	f_ops->unlocked_ioctl = disp_ioctl;

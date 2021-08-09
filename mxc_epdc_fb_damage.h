@@ -55,11 +55,11 @@ typedef struct
 	uint32_t              waveform_mode;
 	uint32_t              update_mode;
 	uint32_t              update_marker;
-	int                   temp;
+	int                   temp;    // Not w/ SUNXI
 	unsigned int          flags;
-	int                   dither_mode;    // Only w/ V2
-	int                   quant_bit;      // Only w/ V2
-	mxcfb_damage_alt_data alt_buffer_data;
+	int                   dither_mode;        // Only w/ V2
+	int                   quant_bit;          // Only w/ V2
+	mxcfb_damage_alt_data alt_buffer_data;    // Not w/ SUNXI
 } mxcfb_damage_data;
 
 // And, finally, this is what read() will spit out :).

@@ -112,6 +112,56 @@ static int
 
 #ifdef CONFIG_ARCH_SUNXI
 			if (cmd == DISP_EINK_UPDATE2) {
+				bool                  copy_failure = false;
+				// A lot of the stuff we need is actually a pointer, so we need a bunch of copies...
+				// Make sure *all* of them are sane...
+				sunxi_disp_eink_ioctl ioc_data;
+				struct area_info      area;
+				unsigned int          frame_id;
+				uint32_t              rotate;
+				if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
+					if (!copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
+						if (get_user(frame_id,
+							     (unsigned int __user*) ioc_data.update2.frame_id)) {
+							copy_failure = true;
+						} else {
+							if (get_user(rotate,
+								     (uint32_t __user*) ioc_data.update2.rotate)) {
+								copy_failure = true;
+							}
+						}
+					} else {
+						copy_failure = true;
+					}
+				} else {
+					copy_failure = true;
+				}
+
+				if (copy_failure) {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
+				} else {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2;
+
+					damage_circ.buffer[head].data.update_region.top  = area.y_top;
+					damage_circ.buffer[head].data.update_region.left = area.x_top;
+					damage_circ.buffer[head].data.update_region.width =
+					    area.x_bottom - area.x_top + 1;
+					damage_circ.buffer[head].data.update_region.height =
+					    area.y_bottom - area.y_top + 1;
+
+					damage_circ.buffer[head].data.waveform_mode =
+					    GET_UPDATE_MODE(ioc_data.update2.update_mode);
+					if (IS_RECT_UPDATE(ioc_data.update2.update_mode)) {
+						damage_circ.buffer[head].data.update_mode = 0;    // UPDATE_MODE_PARTIAL
+					} else {
+						damage_circ.buffer[head].data.update_mode = 1;    // UPDATE_MODE_FULL
+					}
+
+					damage_circ.buffer[head].data.update_marker = frame_id;
+
+					damage_circ.buffer[head].data.flags =
+					    GET_UPDATE_INFO(ioc_data.update2.update_mode);
+				}
 #else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 				struct mxcfb_update_data_v1_ntx v1_ntx;

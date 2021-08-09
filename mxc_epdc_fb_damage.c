@@ -362,22 +362,11 @@ int
 		return ret;
 	}
 
-	// NOTE: This is going to be more annoying on sunxi...
-	//       The refresh ioctl commands are not sent to the framebuffer's character device,
-	//       but to a dedicated one (/dev/disp).
-	//       AFAICT, there's no easy way to get at its cdev or fops via some kind of lookup mechanism like
-	//       we can here via registered_fb...
-	//       But can we still monkey-patch its unlocked_ioctl file_operations pointer anyway,
-	//       possibly via file->f_op after a filp_open?
-	//       AFAICT, the only other pointer to fops is inode->i_cdev->ops,
-	//       but that's only available from within the device's actual open handler
-	//       (c.f., misc_open in drivers/char/misc.c)
-	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
 #ifdef CONFIG_ARCH_SUNXI
 	orig_disp_ioctl = disp_cdev->ops->unlocked_ioctl;
 
 	// NOTE: Since the file_operations struct is const, and disp_fops itself is static,
-	//       we can't touch it, we have to replace it entirely...
+	//       we can't touch it to simply update its unlocked_ioctl pointer, we have to replace it entirely...
 	// NOTE: That works, but only for *subsequent* DISP clients, not existing ones...
 	//       Which means that unloading the module will horribly *break* existing clients, too...
 	orig_disp_fops                   = disp_cdev->ops;

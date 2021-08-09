@@ -329,7 +329,7 @@ int
 {
 	int ret;
 #ifdef CONFIG_ARCH_SUNXI
-	struct file*            fp;
+	struct file* fp;
 	//struct file_operations* f_ops;
 #endif
 
@@ -341,6 +341,7 @@ int
 		return ret;
 	}
 	cdev_init(&cdev, &fbdamage_fops);
+	cdev.owner = THIS_MODULE;
 	if ((ret = cdev_add(&cdev, dev, 1) < 0)) {
 		unregister_chrdev_region(dev, 1);
 		return ret;
@@ -364,7 +365,7 @@ int
 		return -EINVAL;
 	}
 
-	orig_disp_ioctl       = fp->f_op->unlocked_ioctl;
+	orig_disp_ioctl          = fp->f_op->unlocked_ioctl;
 	// NOTE: Nope, can't do that, the file_operations struct is const ;'(
 	//       And disp_fops is a static anyway, so, nope, not gonna happen.
 	fp->f_op->unlocked_ioctl = disp_ioctl;
@@ -393,7 +394,7 @@ void
     cleanup_module(void)
 {
 #ifdef CONFIG_ARCH_SUNXI
-	struct file*            fp;
+	struct file* fp;
 	//struct file_operations* f_ops;
 #endif
 

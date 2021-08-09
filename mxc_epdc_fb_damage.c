@@ -91,7 +91,6 @@ static int
 	int ret = orig_fb_ioctl(info, cmd, arg);
 #endif
 #ifdef CONFIG_ARCH_SUNXI
-	pr_info("mxc_epdc_fb_damage: ran orig_disp_ioctl: cmd: %#x // arg: %#lx\n", cmd, arg);
 	if (cmd == DISP_EINK_UPDATE2) {
 #else
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
@@ -113,7 +112,6 @@ static int
 
 #ifdef CONFIG_ARCH_SUNXI
 			if (cmd == DISP_EINK_UPDATE2) {
-				pr_warn("mxc_epdc_fb_damage: intercepted a DISP_EINK_UPDATE2 ioctl\n");
 #else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 				struct mxcfb_update_data_v1_ntx v1_ntx;
@@ -375,11 +373,6 @@ int
 	patched_disp_fops                = *orig_disp_fops;
 	patched_disp_fops.unlocked_ioctl = disp_ioctl;
 	disp_cdev->ops                   = &patched_disp_fops;
-
-	pr_info("mxc_epdc_fb_damage: orig_disp_ioctl: %p\n", orig_disp_ioctl);
-	pr_info("mxc_epdc_fb_damage: new disp_cdev->ops->unlocked_ioctl: %p\n", disp_cdev->ops->unlocked_ioctl);
-	pr_info("mxc_epdc_fb_damage: orig_disp_fops: %p\n", orig_disp_fops);
-	pr_info("mxc_epdc_fb_damage: new disp_cdev->ops: %p\n", disp_cdev->ops);
 #else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	// NOTE: Much like the file_operations above, this will become much hairier on newer kernels (>= 5.6),
@@ -401,10 +394,7 @@ void
 	unregister_chrdev_region(dev, 1);
 
 #ifdef CONFIG_ARCH_SUNXI
-	pr_info("mxc_epdc_fb_damage: patched disp_cdev->ops: %p\n", disp_cdev->ops);
 	disp_cdev->ops = orig_disp_fops;
-	pr_info("mxc_epdc_fb_damage: restored restored disp_cdev->ops: %p\n", disp_cdev->ops);
-	pr_info("mxc_epdc_fb_damage: restored disp_cdev->ops->unlocked_ioctl: %p\n", disp_cdev->ops->unlocked_ioctl);
 #else
 	registered_fb[fbnode]->fbops->fb_ioctl = orig_fb_ioctl;
 #endif

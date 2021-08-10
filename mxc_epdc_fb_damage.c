@@ -120,17 +120,13 @@ static int
 				unsigned int          frame_id;
 				uint32_t              rotate;
 				if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
-					if (!copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
-						if (get_user(frame_id,
-							     (unsigned int __user*) ioc_data.update2.frame_id)) {
-							copy_failure = true;
-						} else {
-							if (get_user(rotate,
-								     (uint32_t __user*) ioc_data.update2.rotate)) {
-								copy_failure = true;
-							}
-						}
-					} else {
+					if (copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
+						copy_failure = true;
+					}
+					if (get_user(frame_id, (unsigned int __user*) ioc_data.update2.frame_id)) {
+						copy_failure = true;
+					}
+					if (get_user(rotate, (uint32_t __user*) ioc_data.update2.rotate)) {
 						copy_failure = true;
 					}
 				} else {

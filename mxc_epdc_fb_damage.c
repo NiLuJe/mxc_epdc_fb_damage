@@ -445,7 +445,10 @@ int
 	fbdamage_device = device_create(fbdamage_class, NULL, dev, NULL, "fbdamage");
 
 #ifdef CONFIG_ARCH_SUNXI
-	device_create_file(fbdamage_device, &dev_attr_rotate);
+	// Created @ /sys/devices/virtual/fbdamage/fbdamage/rotate
+	if ((ret = device_create_file(fbdamage_device, &dev_attr_rotate))) {
+		return ret;
+	}
 #endif
 	return 0;
 }

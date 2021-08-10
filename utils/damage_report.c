@@ -118,7 +118,6 @@ int
 						goto cleanup;
 					}
 
-					// NOTE: We print all the fields, no matter the actual data format (the module ensures they're set to sane defaults).
 					if (damage.format == DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2) {
 						printf(
 						    "overflow_notify=%d, queue_size=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%#x, update_mode=%u, update_marker=%u, flags=%#x, rotate=%u}\n",
@@ -134,6 +133,8 @@ int
 						    damage.data.flags,
 						    damage.data.rotate);
 					} else {
+						// NOTE: For mxcfb, we print all the fields, no matter the actual data format
+						//       (the module ensures they're set to sane defaults).
 						printf(
 						    "overflow_notify=%d, queue_size=%d {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%u, update_mode=%u, update_marker=%u, temp=%d, flags=%u, dither_mode=%d, quant_bit=%d, alt_buffer_data={virt_addr=%p, phys_addr=%u, width=%u, height=%u, alt_update_region={top=%u, left=%u, width=%u, height=%u}}}\n",
 						    damage.overflow_notify,

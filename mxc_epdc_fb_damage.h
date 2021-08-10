@@ -57,6 +57,7 @@ typedef struct
 	uint32_t              update_marker;
 	int                   temp;    // Not w/ SUNXI
 	unsigned int          flags;
+	uint32_t              rotate;             // Only w/ SUNXI
 	int                   dither_mode;        // Only w/ V2
 	int                   quant_bit;          // Only w/ V2
 	mxcfb_damage_alt_data alt_buffer_data;    // Not w/ SUNXI

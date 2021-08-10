@@ -157,6 +157,8 @@ static int
 
 					damage_circ.buffer[head].data.flags =
 					    GET_UPDATE_INFO(ioc_data.update2.update_mode);
+
+					damage_circ.buffer[head].data.rotate = rotate;
 				}
 #else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {

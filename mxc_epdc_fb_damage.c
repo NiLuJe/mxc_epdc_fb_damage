@@ -74,6 +74,8 @@ static const struct file_operations* orig_disp_fops;
 static struct file_operations        patched_disp_fops;
 
 static struct cdev* disp_cdev;
+
+static uint32_t g2d_rota = 270U;
 #else
 typedef int (*ioctl_handler_fn_t)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 static ioctl_handler_fn_t orig_fb_ioctl;
@@ -159,6 +161,7 @@ static int
 					    GET_UPDATE_INFO(ioc_data.update2.update_mode);
 
 					damage_circ.buffer[head].data.rotate = rotate;
+					g2d_rota                             = rotate;
 				}
 #else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
@@ -376,6 +379,16 @@ static const struct file_operations fbdamage_fops = { .owner   = THIS_MODULE,
 						      .release = fbdamage_release,
 						      .poll    = fbdamage_poll };
 
+#ifdef CONFIG_ARCH_SUNXI
+static ssize_t
+    rotate_show(struct device* dev, struct device_attribute* attr, char* buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%u\n", g2d_rota);
+}
+
+static struct device_attribute dev_attr_rotate = __ATTR_RO(rotate);
+#endif
+
 int
     init_module(void)
 {
@@ -430,12 +443,20 @@ int
 
 	fbdamage_class  = class_create(THIS_MODULE, "fbdamage");
 	fbdamage_device = device_create(fbdamage_class, NULL, dev, NULL, "fbdamage");
+
+#ifdef CONFIG_ARCH_SUNXI
+	device_create_file(fbdamage_device, &dev_attr_rotate);
+#endif
 	return 0;
 }
 
 void
     cleanup_module(void)
 {
+#ifdef CONFIG_ARCH_SUNXI
+	device_remove_file(fbdamage_device, &dev_attr_rotate);
+#endif
+
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);

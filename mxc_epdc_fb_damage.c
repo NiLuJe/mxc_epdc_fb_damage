@@ -75,6 +75,8 @@ static struct file_operations        patched_disp_fops;
 
 static struct cdev* disp_cdev;
 
+static DEFINE_MUTEX(producer_lock);
+
 static uint32_t g2d_rota = 270U;
 static bool     pen_mode = false;
 #else
@@ -86,6 +88,7 @@ static ioctl_handler_fn_t orig_fb_ioctl;
 static long
     disp_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
 {
+	int head, tail;
 	int ret = orig_disp_ioctl(file, cmd, arg);
 
 	if (cmd == DISP_EINK_SET_NTX_HANDWRITE_ONOFF) {
@@ -94,22 +97,24 @@ static long
 			pen_mode = ioc_data.toggle_handw.enable;
 		}
 	} else if (cmd == DISP_EINK_UPDATE2) {
-		// FIXME: Do we need extra locking on sunxi?
+		// NOTE: Unlike fb_ioctl, unlocked_ioctl is called without a lock, so, hold a mutex ourself...
+		mutex_lock(&producer_lock);
 #else
 static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
+	int head, tail;
 	int ret = orig_fb_ioctl(info, cmd, arg);
 
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
 #endif
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
-		int head = damage_circ.head;
+		head = damage_circ.head;
 		/* Said locking provide the needed ordering. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		int tail = READ_ONCE(damage_circ.tail);
+		tail = READ_ONCE(damage_circ.tail);
 #else
-		int tail = ACCESS_ONCE(damage_circ.tail);
+		tail = ACCESS_ONCE(damage_circ.tail);
 #endif
 		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
@@ -255,6 +260,9 @@ static int
 		wake_up_interruptible_poll(&listen_queue, EPOLLIN | EPOLLRDNORM);
 #else
 		wake_up_interruptible_poll(&listen_queue, POLLIN | POLLRDNORM);
+#endif
+#ifdef CONFIG_ARCH_SUNXI
+		mutex_unlock(&producer_lock);
 #endif
 	}
 	return ret;

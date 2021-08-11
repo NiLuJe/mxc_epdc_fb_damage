@@ -76,6 +76,7 @@ static struct file_operations        patched_disp_fops;
 static struct cdev* disp_cdev;
 
 static uint32_t g2d_rota = 270U;
+static bool     pen_mode = false;
 #else
 typedef int (*ioctl_handler_fn_t)(struct fb_info* info, unsigned int cmd, unsigned long arg);
 static ioctl_handler_fn_t orig_fb_ioctl;
@@ -86,15 +87,20 @@ static long
     disp_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_disp_ioctl(file, cmd, arg);
+
+	if (cmd == DISP_EINK_SET_NTX_HANDWRITE_ONOFF) {
+		sunxi_disp_eink_ioctl ioc_data;
+		if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
+			pen_mode = ioc_data.toggle_handw.enable;
+		}
+	} else if (cmd == DISP_EINK_UPDATE2) {
+		// FIXME: Do we need extra locking on sunxi?
 #else
 static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
 	int ret = orig_fb_ioctl(info, cmd, arg);
-#endif
-#ifdef CONFIG_ARCH_SUNXI
-	if (cmd == DISP_EINK_UPDATE2) {
-#else
+
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
 #endif
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
@@ -162,6 +168,8 @@ static int
 
 					damage_circ.buffer[head].data.rotate = rotate;
 					g2d_rota                             = rotate;
+
+					damage_circ.buffer[head].data.pen_mode = pen_mode;
 				}
 #else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
@@ -387,6 +395,14 @@ static ssize_t
 }
 
 static struct device_attribute dev_attr_rotate = __ATTR_RO(rotate);
+
+static ssize_t
+    pen_mode_show(struct device* dev, struct device_attribute* attr, char* buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", pen_mode);
+}
+
+static struct device_attribute dev_attr_pen_mode = __ATTR_RO(pen_mode);
 #endif
 
 int
@@ -433,7 +449,6 @@ int
 	orig_disp_fops                   = disp_cdev->ops;
 	patched_disp_fops                = *orig_disp_fops;
 	patched_disp_fops.unlocked_ioctl = disp_ioctl;
-	disp_cdev->ops                   = &patched_disp_fops;
 #else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
 	// NOTE: Much like the file_operations above, this will become much hairier on newer kernels (>= 5.6),
@@ -447,8 +462,27 @@ int
 #ifdef CONFIG_ARCH_SUNXI
 	// Created @ /sys/devices/virtual/fbdamage/fbdamage/rotate
 	if ((ret = device_create_file(fbdamage_device, &dev_attr_rotate))) {
+		cdev_del(&cdev);
+		device_destroy(fbdamage_class, dev);
+		class_destroy(fbdamage_class);
+		unregister_chrdev_region(dev, 1);
+
 		return ret;
 	}
+
+	if ((ret = device_create_file(fbdamage_device, &dev_attr_pen_mode))) {
+		device_remove_file(fbdamage_device, &dev_attr_rotate);
+
+		cdev_del(&cdev);
+		device_destroy(fbdamage_class, dev);
+		class_destroy(fbdamage_class);
+		unregister_chrdev_region(dev, 1);
+
+		return ret;
+	}
+
+	// Everything went according to plan, patch the thing for real!
+	disp_cdev->ops = &patched_disp_fops;
 #endif
 	return 0;
 }
@@ -457,6 +491,7 @@ void
     cleanup_module(void)
 {
 #ifdef CONFIG_ARCH_SUNXI
+	device_remove_file(fbdamage_device, &dev_attr_pen_mode);
 	device_remove_file(fbdamage_device, &dev_attr_rotate);
 #endif
 

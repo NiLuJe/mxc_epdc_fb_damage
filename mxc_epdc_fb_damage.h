@@ -61,6 +61,7 @@ typedef struct
 	int                   quant_bit;          // Only w/ V2
 	mxcfb_damage_alt_data alt_buffer_data;    // Not w/ SUNXI
 	uint32_t              rotate;             // Only w/ SUNXI
+	bool                  pen_mode;           // Only w/ SUNXI
 } mxcfb_damage_data;
 
 // And, finally, this is what read() will spit out :).

@@ -148,7 +148,7 @@ static int
 					    area.y_bottom - area.y_top + 1;
 
 					damage_circ.buffer[head].data.waveform_mode =
-					    GET_UPDATE_MODE(ioc_data.update2.update_mode);
+					    GET_UPDATE_MODE(ioc_data.update2.update_mode) & ~EINK_RECT_MODE;
 					if (IS_RECT_UPDATE(ioc_data.update2.update_mode)) {
 						damage_circ.buffer[head].data.update_mode = 0;    // UPDATE_MODE_PARTIAL
 					} else {

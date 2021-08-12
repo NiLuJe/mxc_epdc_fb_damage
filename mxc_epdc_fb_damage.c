@@ -478,6 +478,7 @@ int
 		return ret;
 	}
 
+	// Technically a duplicate of disp's own get_ntx_handwrite_enable sysfs device attribute... ;).
 	if ((ret = device_create_file(fbdamage_device, &dev_attr_pen_mode))) {
 		device_remove_file(fbdamage_device, &dev_attr_rotate);
 

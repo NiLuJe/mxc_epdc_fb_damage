@@ -88,17 +88,45 @@ static ioctl_handler_fn_t orig_fb_ioctl;
 static long
     disp_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
 {
-	int head, tail;
+	int                   head, tail;
+	sunxi_disp_eink_ioctl ioc_data;
+	struct area_info      area;
+	unsigned int          frame_id;
+	uint32_t              rotate;
+	bool                  copy_failure;
+
 	int ret = orig_disp_ioctl(file, cmd, arg);
 
 	if (cmd == DISP_EINK_SET_NTX_HANDWRITE_ONOFF) {
-		sunxi_disp_eink_ioctl ioc_data;
 		if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
 			pen_mode = ioc_data.toggle_handw.enable;
 		}
 	} else if (cmd == DISP_EINK_UPDATE2) {
 		// NOTE: Unlike fb_ioctl, unlocked_ioctl is called without a lock, so, hold a mutex ourself...
 		mutex_lock(&producer_lock);
+
+		// A lot of the stuff we need is actually a pointer, so we need a bunch of copies...
+		// Make sure *all* of them are sane...
+		copy_failure = false;
+		if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
+			if (copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
+				copy_failure = true;
+			}
+			if (get_user(frame_id, (unsigned int __user*) ioc_data.update2.frame_id)) {
+				copy_failure = true;
+			}
+			if (get_user(rotate, (uint32_t __user*) ioc_data.update2.rotate)) {
+				copy_failure = true;
+			}
+		} else {
+			copy_failure = true;
+		}
+
+		// NOTE: This is why we needed to get at the data outside of the circ buffer space check:
+		//       to keep the sysfs attribute up to date even after an overflow ;).
+		if (!copy_failure) {
+			g2d_rota = rotate;
+		}
 #else
 static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
@@ -125,27 +153,6 @@ static int
 
 #ifdef CONFIG_ARCH_SUNXI
 			if (cmd == DISP_EINK_UPDATE2) {
-				bool                  copy_failure = false;
-				// A lot of the stuff we need is actually a pointer, so we need a bunch of copies...
-				// Make sure *all* of them are sane...
-				sunxi_disp_eink_ioctl ioc_data;
-				struct area_info      area;
-				unsigned int          frame_id;
-				uint32_t              rotate;
-				if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
-					if (copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
-						copy_failure = true;
-					}
-					if (get_user(frame_id, (unsigned int __user*) ioc_data.update2.frame_id)) {
-						copy_failure = true;
-					}
-					if (get_user(rotate, (uint32_t __user*) ioc_data.update2.rotate)) {
-						copy_failure = true;
-					}
-				} else {
-					copy_failure = true;
-				}
-
 				if (copy_failure) {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
 				} else {
@@ -172,7 +179,6 @@ static int
 					    GET_UPDATE_INFO(ioc_data.update2.update_mode);
 
 					damage_circ.buffer[head].data.rotate = rotate;
-					g2d_rota                             = rotate;
 
 					damage_circ.buffer[head].data.pen_mode = pen_mode;
 				}

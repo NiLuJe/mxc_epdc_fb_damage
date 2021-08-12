@@ -403,14 +403,6 @@ static ssize_t
 }
 
 static struct device_attribute dev_attr_rotate = __ATTR_RO(rotate);
-
-static ssize_t
-    pen_mode_show(struct device* dev, struct device_attribute* attr, char* buf)
-{
-	return scnprintf(buf, PAGE_SIZE, "%d\n", pen_mode);
-}
-
-static struct device_attribute dev_attr_pen_mode = __ATTR_RO(pen_mode);
 #endif
 
 int
@@ -478,18 +470,6 @@ int
 		return ret;
 	}
 
-	// Technically a duplicate of disp's own get_ntx_handwrite_enable sysfs device attribute... ;).
-	if ((ret = device_create_file(fbdamage_device, &dev_attr_pen_mode))) {
-		device_remove_file(fbdamage_device, &dev_attr_rotate);
-
-		cdev_del(&cdev);
-		device_destroy(fbdamage_class, dev);
-		class_destroy(fbdamage_class);
-		unregister_chrdev_region(dev, 1);
-
-		return ret;
-	}
-
 	// Everything went according to plan, patch the thing for real!
 	disp_cdev->ops = &patched_disp_fops;
 #endif
@@ -500,7 +480,6 @@ void
     cleanup_module(void)
 {
 #ifdef CONFIG_ARCH_SUNXI
-	device_remove_file(fbdamage_device, &dev_attr_pen_mode);
 	device_remove_file(fbdamage_device, &dev_attr_rotate);
 #endif
 

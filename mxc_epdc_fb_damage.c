@@ -22,7 +22,11 @@
 #include <linux/version.h>
 #include <linux/wait.h>
 
-#include "FBInk/eink/mxcfb-kobo.h"
+#ifdef CONFIG_ARCH_SUNXI
+#	include "FBInk/eink/sunxi-kobo.h"
+#else
+#	include "FBInk/eink/mxcfb-kobo.h"
+#endif
 
 #include "mxc_epdc_fb_damage.h"
 
@@ -35,6 +39,13 @@
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 #	pragma message("Targeting Linux >= 4.16.0")
+#endif
+
+// Ditto for the sunxi check
+#ifdef CONFIG_ARCH_SUNXI
+#	pragma message("Targeting a sunxi kernel")
+#else
+#	pragma message("Targeting an NXP kernel")
 #endif
 
 static int fbnode = 0;
@@ -55,20 +66,55 @@ typedef struct
 static mxcfb_damage_update   damage_buffer[DMG_BUF_SIZE];    // ~6KB
 static mxcfb_damage_circ_buf damage_circ = { .buffer = damage_buffer, .head = 0, .tail = 0 };
 static DECLARE_WAIT_QUEUE_HEAD(listen_queue);
-static int (*orig_fb_ioctl)(struct fb_info* info, unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_ARCH_SUNXI
+typedef long (*ioctl_handler_fn_t)(struct file* file, unsigned int cmd, unsigned long arg);
+static ioctl_handler_fn_t orig_disp_ioctl;
 
+static const struct file_operations* orig_disp_fops;
+static struct file_operations        patched_disp_fops;
+
+static struct cdev* disp_cdev;
+
+static DEFINE_MUTEX(producer_lock);
+
+static uint32_t g2d_rota = 270U;
+static bool     pen_mode = false;
+#else
+typedef int (*ioctl_handler_fn_t)(struct fb_info* info, unsigned int cmd, unsigned long arg);
+static ioctl_handler_fn_t orig_fb_ioctl;
+#endif
+
+#ifdef CONFIG_ARCH_SUNXI
+static long
+    disp_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
+{
+	int head, tail;
+	int ret = orig_disp_ioctl(file, cmd, arg);
+
+	if (cmd == DISP_EINK_SET_NTX_HANDWRITE_ONOFF) {
+		sunxi_disp_eink_ioctl ioc_data;
+		if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
+			pen_mode = ioc_data.toggle_handw.enable;
+		}
+	} else if (cmd == DISP_EINK_UPDATE2) {
+		// NOTE: Unlike fb_ioctl, unlocked_ioctl is called without a lock, so, hold a mutex ourself...
+		mutex_lock(&producer_lock);
+#else
 static int
     fb_ioctl(struct fb_info* info, unsigned int cmd, unsigned long arg)
 {
+	int head, tail;
 	int ret = orig_fb_ioctl(info, cmd, arg);
+
 	if (cmd == MXCFB_SEND_UPDATE_V1_NTX || cmd == MXCFB_SEND_UPDATE_V1 || cmd == MXCFB_SEND_UPDATE_V2) {
+#endif
 		/* The fb_ioctl() is called with the fb_info mutex held, so there is no need for additional locking here */
-		int head = damage_circ.head;
+		head = damage_circ.head;
 		/* Said locking provide the needed ordering. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		int tail = READ_ONCE(damage_circ.tail);
+		tail = READ_ONCE(damage_circ.tail);
 #else
-		int tail = ACCESS_ONCE(damage_circ.tail);
+		tail = ACCESS_ONCE(damage_circ.tail);
 #endif
 		if (CIRC_SPACE(head, tail, DMG_BUF_SIZE) >= 1) {
 			/* insert one item into the buffer */
@@ -77,6 +123,60 @@ static int
 			// (There's only a minor s64 vs. u64 change, which should be mostly irrelevant here).
 			damage_circ.buffer[head].timestamp = ktime_to_ns(ktime_get());
 
+#ifdef CONFIG_ARCH_SUNXI
+			if (cmd == DISP_EINK_UPDATE2) {
+				bool                  copy_failure = false;
+				// A lot of the stuff we need is actually a pointer, so we need a bunch of copies...
+				// Make sure *all* of them are sane...
+				sunxi_disp_eink_ioctl ioc_data;
+				struct area_info      area;
+				unsigned int          frame_id;
+				uint32_t              rotate;
+				if (!copy_from_user(&ioc_data, (void __user*) arg, sizeof(ioc_data))) {
+					if (copy_from_user(&area, (void __user*) ioc_data.update2.area, sizeof(area))) {
+						copy_failure = true;
+					}
+					if (get_user(frame_id, (unsigned int __user*) ioc_data.update2.frame_id)) {
+						copy_failure = true;
+					}
+					if (get_user(rotate, (uint32_t __user*) ioc_data.update2.rotate)) {
+						copy_failure = true;
+					}
+				} else {
+					copy_failure = true;
+				}
+
+				if (copy_failure) {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
+				} else {
+					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2;
+
+					damage_circ.buffer[head].data.update_region.top  = area.y_top;
+					damage_circ.buffer[head].data.update_region.left = area.x_top;
+					damage_circ.buffer[head].data.update_region.width =
+					    area.x_bottom - area.x_top + 1;
+					damage_circ.buffer[head].data.update_region.height =
+					    area.y_bottom - area.y_top + 1;
+
+					damage_circ.buffer[head].data.waveform_mode =
+					    GET_UPDATE_MODE(ioc_data.update2.update_mode) & ~EINK_RECT_MODE;
+					if (IS_RECT_UPDATE(ioc_data.update2.update_mode)) {
+						damage_circ.buffer[head].data.update_mode = 0;    // UPDATE_MODE_PARTIAL
+					} else {
+						damage_circ.buffer[head].data.update_mode = 1;    // UPDATE_MODE_FULL
+					}
+
+					damage_circ.buffer[head].data.update_marker = frame_id;
+
+					damage_circ.buffer[head].data.flags =
+					    GET_UPDATE_INFO(ioc_data.update2.update_mode);
+
+					damage_circ.buffer[head].data.rotate = rotate;
+					g2d_rota                             = rotate;
+
+					damage_circ.buffer[head].data.pen_mode = pen_mode;
+				}
+#else
 			if (cmd == MXCFB_SEND_UPDATE_V1_NTX) {
 				struct mxcfb_update_data_v1_ntx v1_ntx;
 				if (!copy_from_user(&v1_ntx, (void __user*) arg, sizeof(v1_ntx))) {
@@ -142,6 +242,7 @@ static int
 				} else {
 					damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_ERROR;
 				}
+#endif
 			} else {
 				damage_circ.buffer[head].format = DAMAGE_UPDATE_DATA_UNKNOWN;
 			}
@@ -159,6 +260,9 @@ static int
 		wake_up_interruptible_poll(&listen_queue, EPOLLIN | EPOLLRDNORM);
 #else
 		wake_up_interruptible_poll(&listen_queue, POLLIN | POLLRDNORM);
+#endif
+#ifdef CONFIG_ARCH_SUNXI
+		mutex_unlock(&producer_lock);
 #endif
 	}
 	return ret;
@@ -267,14 +371,14 @@ static unsigned int
 	/* read index before reading contents at that index */
 	head = smp_load_acquire(&damage_circ.head);
 #else
-	head = ACCESS_ONCE(damage_circ.head);
+	head              = ACCESS_ONCE(damage_circ.head);
 #endif
 	tail = damage_circ.tail;
 	if (CIRC_CNT(head, tail, DMG_BUF_SIZE) >= 1) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 		mask = EPOLLIN | EPOLLRDNORM;
 #else
-		mask = POLLIN | POLLRDNORM;
+                mask = POLLIN | POLLRDNORM;
 #endif
 	}
 
@@ -291,52 +395,124 @@ static const struct file_operations fbdamage_fops = { .owner   = THIS_MODULE,
 						      .release = fbdamage_release,
 						      .poll    = fbdamage_poll };
 
+#ifdef CONFIG_ARCH_SUNXI
+static ssize_t
+    rotate_show(struct device* dev, struct device_attribute* attr, char* buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%u\n", g2d_rota);
+}
+
+static struct device_attribute dev_attr_rotate = __ATTR_RO(rotate);
+
+static ssize_t
+    pen_mode_show(struct device* dev, struct device_attribute* attr, char* buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", pen_mode);
+}
+
+static struct device_attribute dev_attr_pen_mode = __ATTR_RO(pen_mode);
+#endif
+
 int
     init_module(void)
 {
 	int ret;
+#ifdef CONFIG_ARCH_SUNXI
+	struct file* fp;
 
+	fp = filp_open("/dev/disp", O_RDONLY, 0);
+	if (IS_ERR(fp)) {
+		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");
+		return -ENODEV;
+	}
+
+	disp_cdev = fp->f_inode->i_cdev;
+
+	filp_close(fp, NULL);
+#else
 	if (!registered_fb[fbnode]) {
 		return -ENODEV;
 	}
+#endif
 
 	if ((ret = alloc_chrdev_region(&dev, 0, 1, "mxc_epdc_fb_damage"))) {
 		return ret;
 	}
 	cdev_init(&cdev, &fbdamage_fops);
+	cdev.owner = THIS_MODULE;
 	if ((ret = cdev_add(&cdev, dev, 1) < 0)) {
 		unregister_chrdev_region(dev, 1);
 		return ret;
 	}
 
-	// NOTE: This is going to be more annoying on sunxi...
-	//       The refresh ioctl commands are not sent to the framebuffer's character device,
-	//       but to a dedicated one (/dev/disp).
-	//       AFAICT, there's no easy way to get at its cdev or fops via some kind of lookup mechanism like
-	//       we can here via registered_fb...
-	//       But can we still monkey-patch its unlocked_ioctl file_operations pointer anyway,
-	//       possibly via file->f_op after a filp_open?
-	//       AFAICT, the only other pointer to fops is inode->i_cdev->ops,
-	//       but that's only available from within the device's actual open handler
-	//       (c.f., misc_open in drivers/char/misc.c)
-	//       If it does work, that would mean more ifdeffery based on a CONFIG_ entry that's sunxi/disp specific...
+#ifdef CONFIG_ARCH_SUNXI
+	orig_disp_ioctl = disp_cdev->ops->unlocked_ioctl;
+
+	// NOTE: Since the file_operations struct is const, and disp_fops itself is static and const,
+	//       we can't touch it to simply update its unlocked_ioctl pointer, we have to replace it entirely...
+	// NOTE: That works, but only for *subsequent* DISP clients,
+	//       not existing ones (those are using their original file->f_op pointer copy done at open time)...
+	//       Which means that unloading the module will horribly *break* existing clients, too...
+	//       (We never really unload the module outside of development/debugging scenarios, though).
+	orig_disp_fops                   = disp_cdev->ops;
+	patched_disp_fops                = *orig_disp_fops;
+	patched_disp_fops.unlocked_ioctl = disp_ioctl;
+#else
 	orig_fb_ioctl                          = registered_fb[fbnode]->fbops->fb_ioctl;
+	// NOTE: Much like the file_operations above, this will become much hairier on newer kernels (>= 5.6),
+	//       since https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/include/linux/fb.h?id=bf9e25ec12877a622857460c2f542a6c31393250 made it const ;).
 	registered_fb[fbnode]->fbops->fb_ioctl = fb_ioctl;
+#endif
 
 	fbdamage_class  = class_create(THIS_MODULE, "fbdamage");
 	fbdamage_device = device_create(fbdamage_class, NULL, dev, NULL, "fbdamage");
+
+#ifdef CONFIG_ARCH_SUNXI
+	// Created @ /sys/devices/virtual/fbdamage/fbdamage/rotate
+	if ((ret = device_create_file(fbdamage_device, &dev_attr_rotate))) {
+		cdev_del(&cdev);
+		device_destroy(fbdamage_class, dev);
+		class_destroy(fbdamage_class);
+		unregister_chrdev_region(dev, 1);
+
+		return ret;
+	}
+
+	if ((ret = device_create_file(fbdamage_device, &dev_attr_pen_mode))) {
+		device_remove_file(fbdamage_device, &dev_attr_rotate);
+
+		cdev_del(&cdev);
+		device_destroy(fbdamage_class, dev);
+		class_destroy(fbdamage_class);
+		unregister_chrdev_region(dev, 1);
+
+		return ret;
+	}
+
+	// Everything went according to plan, patch the thing for real!
+	disp_cdev->ops = &patched_disp_fops;
+#endif
 	return 0;
 }
 
 void
     cleanup_module(void)
 {
+#ifdef CONFIG_ARCH_SUNXI
+	device_remove_file(fbdamage_device, &dev_attr_pen_mode);
+	device_remove_file(fbdamage_device, &dev_attr_rotate);
+#endif
+
 	cdev_del(&cdev);
 	device_destroy(fbdamage_class, dev);
 	class_destroy(fbdamage_class);
 	unregister_chrdev_region(dev, 1);
 
+#ifdef CONFIG_ARCH_SUNXI
+	disp_cdev->ops = orig_disp_fops;
+#else
 	registered_fb[fbnode]->fbops->fb_ioctl = orig_fb_ioctl;
+#endif
 }
 
 MODULE_LICENSE("GPL");

@@ -20,6 +20,7 @@ typedef enum
 	DAMAGE_UPDATE_DATA_V1_NTX,
 	DAMAGE_UPDATE_DATA_V1,    // Nothing should actually use this one in practice, even on the Aura
 	DAMAGE_UPDATE_DATA_V2,
+	DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2,
 	DAMAGE_UPDATE_DATA_ERROR = 0xFF,
 } mxcfb_damage_data_format;
 
@@ -54,11 +55,13 @@ typedef struct
 	uint32_t              waveform_mode;
 	uint32_t              update_mode;
 	uint32_t              update_marker;
-	int                   temp;
+	int                   temp;    // Not w/ SUNXI
 	unsigned int          flags;
-	int                   dither_mode;    // Only w/ V2
-	int                   quant_bit;      // Only w/ V2
-	mxcfb_damage_alt_data alt_buffer_data;
+	int                   dither_mode;        // Only w/ V2
+	int                   quant_bit;          // Only w/ V2
+	mxcfb_damage_alt_data alt_buffer_data;    // Not w/ SUNXI
+	uint32_t              rotate;             // Only w/ SUNXI
+	bool                  pen_mode;           // Only w/ SUNXI
 } mxcfb_damage_data;
 
 // And, finally, this is what read() will spit out :).

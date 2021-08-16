@@ -48,9 +48,11 @@
 #	pragma message("Targeting an NXP kernel")
 #endif
 
+#ifndef CONFIG_ARCH_SUNXI
 static int fbnode = 0;
 module_param(fbnode, int, 0444);
 MODULE_PARM_DESC(fbnode, "Framebuffer index (Defaults to 0, i.e., fb0)");
+#endif
 
 static atomic_t overflows = ATOMIC_INIT(0);
 

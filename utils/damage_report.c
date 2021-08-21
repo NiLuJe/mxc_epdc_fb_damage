@@ -17,6 +17,9 @@
 
 #include "../mxc_epdc_fb_damage.h"
 
+// Cute trick from https://stackoverflow.com/a/7618231
+#define BOOL2STR(X) ({ ("false\0\0\0true" + 8 * !!(X)); })
+
 int
     main(void)
 {
@@ -120,7 +123,7 @@ int
 
 					if (damage.format == DAMAGE_UPDATE_DATA_SUNXI_KOBO_DISP2) {
 						printf(
-						    "overflow_notify=%u, queue_size=%u {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%#x, update_mode=%u, update_marker=%u, flags=%#x, rotate=%u}, pen_mode=%d\n",
+						    "overflow_notify=%u, queue_size=%u {update_region={top=%u, left=%u, width=%u, height=%u}, waveform_mode=%#x, update_mode=%u, update_marker=%u, flags=%#x, rotate=%u}, pen_mode=%s\n",
 						    damage.overflow_notify,
 						    damage.queue_size,
 						    damage.data.update_region.top,
@@ -132,7 +135,7 @@ int
 						    damage.data.update_marker,
 						    damage.data.flags,
 						    damage.data.rotate,
-						    damage.data.pen_mode);
+						    BOOL2STR(damage.data.pen_mode));
 					} else {
 						// NOTE: For mxcfb, we print all the fields, no matter the actual data format
 						//       (the module ensures they're set to sane defaults).

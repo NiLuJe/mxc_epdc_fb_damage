@@ -23,7 +23,7 @@ Each call to `read` will return a single [`mxcfb_damage_update` struct](./mxc_ep
 The `data` member will be set to a custom [`mxcfb_damage_data` struct](./mxc_epdc_fb_damage.h), one that (mostly) matches the original `mxcfb_update_data` passed to the kernel in an `MXCFB_SEND_UPDATE` ioctl, but is defined entirely in the header, allowing you to *not* have to rely on kernel headers.
 This is also done in order to be able to handle the various different ioctl & struct layouts across Kobo generations.
 
-Speaking of, on sunxi, we split the native `update_mode` bitmask in three: `waveform_mode` is set to the `EINK_*_MODE` waveform mode value *only*; `update_mode` is 0 if the `EINK_RECT_MODE` bit is set, 1 otherwise (i.e., requesting a flash, although not every waveform mode can flash, and the rules differ slightly on that front compared to mxcfb); and `flags` is set to the remaining bits (e.g., `GET_UPDATE_INFO()`).
+Speaking of, on sunxi, we split the native `update_mode` bitmask in three: `waveform_mode` is set to the `EINK_*_MODE` waveform mode value *only*; `update_mode` is 0 if the `EINK_PARTIAL_MODE` bit is set, 1 otherwise (i.e., requesting a flash, although not every waveform mode can flash, and the rules differ slightly on that front compared to mxcfb); and `flags` is set to the remaining bits (e.g., `GET_UPDATE_INFO()`).
 
 The `overflow_notify` member will be set if any updates have been discarded, and the `queue_size` member will be set to the amount of damage events in the kernel queue at `read` time (current one included, i.e., this will never be lower than 1).
 Both should help dealing sanely with late reads and ioctl storms.

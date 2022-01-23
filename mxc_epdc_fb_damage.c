@@ -420,6 +420,9 @@ int
 #ifdef CONFIG_ARCH_SUNXI
 	struct file* fp;
 
+	// NOTE: Since FW 4.31.19086, this may block significantly longer than it used to during early boot,
+	//       which may introduce race conditions if the module is loaded in parallel to the disp client(s)
+	//       you want to sniff...
 	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");

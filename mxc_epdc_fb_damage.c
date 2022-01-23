@@ -423,6 +423,7 @@ int
 	// NOTE: Since FW 4.31.19086, this may block significantly longer than it used to during early boot,
 	//       which may introduce race conditions if the module is loaded in parallel to the disp client(s)
 	//       you want to sniff...
+	//       In fact, it may completely deadlock: do *NOT* try to insert this module in a way that would block rcS!
 	fp = filp_open("/dev/disp", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pr_err("mxc_epdc_fb_damage: cannot open: `/dev/disp`\n");

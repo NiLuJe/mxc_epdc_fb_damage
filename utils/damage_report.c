@@ -1,6 +1,6 @@
 /*
 	damage_report: Simple example for mxc_epdc_fb_damage usage.
-	Copyright (C) 2021 NiLuJe <ninuje@gmail.com>
+	Copyright (C) 2021-2022 NiLuJe <ninuje@gmail.com>
 	SPDX-License-Identifier: GPL-2.0-only
 */
 

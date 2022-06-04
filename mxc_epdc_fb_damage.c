@@ -1,7 +1,7 @@
 /*
 	mxc_epdc_fb_damage: Userspace access to framebuffer damage information on i.MX EPDCs
 	Based on original work by @pl-semiotics <https://github.com/pl-semiotics/mxc_epdc_fb_damage>.
-	Kobo port copyright (C) 2021 NiLuJe <ninuje@gmail.com>
+	Kobo port copyright (C) 2021-2022 NiLuJe <ninuje@gmail.com>
 	SPDX-License-Identifier: GPL-2.0-only
 */
 
